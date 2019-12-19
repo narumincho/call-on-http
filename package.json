@@ -19,5 +19,8 @@
   "homepage": "https://github.com/narumincho/call-on-http#readme",
   "dependencies": {
     "typescript": "^3.7.3"
+  },
+  "devDependencies": {
+    "@types/node": "^12.12.21"
   }
 }
