@@ -1,0 +1,23 @@
+{
+  "name": "call-on-http",
+  "version": "0.0.0",
+  "description": "",
+  "main": "distribution/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/narumincho/call-on-http.git"
+  },
+  "keywords": [
+    "api",
+    "typescript"
+  ],
+  "author": "narumincho <narumincho.starfy@gmail.com> (https://narumincho.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/narumincho/call-on-http/issues"
+  },
+  "homepage": "https://github.com/narumincho/call-on-http#readme",
+  "dependencies": {
+    "typescript": "^3.7.3"
+  }
+}
