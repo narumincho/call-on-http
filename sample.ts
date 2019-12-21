@@ -1,4 +1,4 @@
-export const constantValue = "stringValue";
+export const constantValue: string = "stringValue";
 
 /** ユーザー */
 type User = {

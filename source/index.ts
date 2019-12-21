@@ -3,9 +3,9 @@ import * as ts from "typescript";
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
 const visit = (node: ts.Node): void => {
-  if (ts.isStringLiteral(node)) {
-    console.log(node.text);
-  }
+  // if (ts.isStringLiteral(node)) {
+  //   console.log(node.text);
+  // }
   node.forEachChild(visit);
 };
 
@@ -39,9 +39,16 @@ const getExposedVariable = (
   }
   symbolTable.forEach((value, key) => {
     console.log(key);
-    for (const declaration of value.declarations) {
-      declaration.forEachChild(visit);
+    const declaration = value.valueDeclaration;
+    const flags = typeChecker.getTypeOfSymbolAtLocation(value, declaration)
+      .flags;
+    console.log("flags = ", flags);
+    switch (flags) {
+      case ts.TypeFlags.String:
+        console.log(key.toString() + "の型はstringだ!");
     }
+    console.log();
+    declaration.forEachChild(visit);
   });
 };
 
