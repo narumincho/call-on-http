@@ -11,7 +11,10 @@ type User = {
   createdAt: Date;
 };
 
-/** IDからユーザーの情報を取得する */
+/**
+ * IDからユーザーの情報を取得する
+ * @param id パラメータに対するコメント
+ */
 export const getUser = async (id: string): Promise<User> => {
   return {
     name: "Kish.",

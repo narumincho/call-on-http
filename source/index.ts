@@ -2,6 +2,19 @@ import * as ts from "typescript";
 
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
+/** Serialize a symbol into a json object */
+const serializeSymbol = (symbol: ts.Symbol, typeChecker: ts.TypeChecker) => {
+  return {
+    name: symbol.getName(),
+    documentation: ts.displayPartsToString(
+      symbol.getDocumentationComment(typeChecker)
+    ),
+    type: typeChecker.typeToString(
+      typeChecker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration!)
+    )
+  };
+};
+
 const f = (typeChecker: ts.TypeChecker) => (
   value: ts.Symbol,
   key: ts.__String
@@ -25,18 +38,21 @@ const f = (typeChecker: ts.TypeChecker) => (
     }
     case ts.TypeFlags.Object: {
       console.log(key.toString() + "の型はobjectだ!");
-      console.log(
-        "getCallSignatures",
-        type
-          .getCallSignatures()
-          .map(e => [
-            "parametor",
-            e.getParameters().map(k => k.getName()),
-            "return",
-            e.getReturnType().symbol.getName()
-          ])
-      );
-      console.log("getConstructSignatures", type.getConstructSignatures());
+      const callSignatures = type.getCallSignatures();
+      for (const callSignature of callSignatures) {
+        console.log("関数呼び出しの1つの形式を見つけた");
+        for (const parameter of callSignature.getParameters()) {
+          console.log(serializeSymbol(parameter, typeChecker));
+        }
+        const typeParameters = callSignature.getTypeParameters();
+        if (typeParameters === undefined) {
+          console.log("typeParameters が undefined");
+        } else {
+          for (const typeParameter of typeParameters) {
+            console.log("typeParameter", ts.TypeFlags[typeParameter.flags]);
+          }
+        }
+      }
       // const pattern = type.pattern;
       // console.log("pattern", pattern);
       // if (pattern === undefined) {
