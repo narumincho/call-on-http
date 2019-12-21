@@ -1,3 +1,4 @@
+/** 説明 */
 export const constantValue: string = "stringValue";
 
 /** ユーザー */
@@ -12,6 +13,14 @@ type User = {
 
 /** IDからユーザーの情報を取得する */
 export const getUser = async (id: string): Promise<User> => {
+  return {
+    name: "Kish.",
+    age: 21,
+    createdAt: new Date()
+  };
+};
+
+export const getUserNoPromise = (id: string): User => {
   return {
     name: "Kish.",
     age: 21,

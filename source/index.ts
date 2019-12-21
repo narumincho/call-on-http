@@ -2,11 +2,50 @@ import * as ts from "typescript";
 
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
-const visit = (node: ts.Node): void => {
-  // if (ts.isStringLiteral(node)) {
-  //   console.log(node.text);
-  // }
-  node.forEachChild(visit);
+const f = (typeChecker: ts.TypeChecker) => (
+  value: ts.Symbol,
+  key: ts.__String
+): void => {
+  console.log();
+  console.log(key);
+  const declaration = value.valueDeclaration;
+  const type = typeChecker.getTypeOfSymbolAtLocation(value, declaration);
+  console.log("isClassOrInterface", type.isClassOrInterface());
+  console.log("isIntersection", type.isIntersection());
+  console.log("isLiteral", type.isLiteral());
+  console.log("isUnion", type.isUnion());
+  // type flagが object だからオブジェクトのフィールドとして (): があるかもしれない
+
+  const flags = type.flags;
+
+  switch (flags) {
+    case ts.TypeFlags.String: {
+      console.log(key.toString() + "の型はstringだ!");
+      return;
+    }
+    case ts.TypeFlags.Object: {
+      console.log(key.toString() + "の型はobjectだ!");
+      console.log(
+        "getCallSignatures",
+        type
+          .getCallSignatures()
+          .map(e => [
+            "parametor",
+            e.getParameters().map(k => k.getName()),
+            "return",
+            e.getReturnType().symbol.getName()
+          ])
+      );
+      console.log("getConstructSignatures", type.getConstructSignatures());
+      // const pattern = type.pattern;
+      // console.log("pattern", pattern);
+      // if (pattern === undefined) {
+      //   console.log("pattern is undef");
+      //   return;
+      // }
+      // console.log("kd", ts.SyntaxKind[pattern.kind]);
+    }
+  }
 };
 
 const getExposedVariable = (
@@ -37,19 +76,7 @@ const getExposedVariable = (
     console.log("symbolTableを取得できなかった");
     return;
   }
-  symbolTable.forEach((value, key) => {
-    console.log(key);
-    const declaration = value.valueDeclaration;
-    const flags = typeChecker.getTypeOfSymbolAtLocation(value, declaration)
-      .flags;
-    console.log("flags = ", flags);
-    switch (flags) {
-      case ts.TypeFlags.String:
-        console.log(key.toString() + "の型はstringだ!");
-    }
-    console.log();
-    declaration.forEachChild(visit);
-  });
+  symbolTable.forEach(f(typeChecker));
 };
 
 getExposedVariable("sample.ts", {
