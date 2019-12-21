@@ -30,3 +30,9 @@ export const getUserNoPromise = (id: string): User => {
     createdAt: new Date()
   };
 };
+
+export const functionWithOutReturnType = (id: string) => {
+  return {
+    data: 32
+  };
+};

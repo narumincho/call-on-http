@@ -41,16 +41,17 @@ const f = (typeChecker: ts.TypeChecker) => (
       const callSignatures = type.getCallSignatures();
       for (const callSignature of callSignatures) {
         console.log("関数呼び出しの1つの形式を見つけた");
+        console.group("引数");
+
         for (const parameter of callSignature.getParameters()) {
           console.log(serializeSymbol(parameter, typeChecker));
         }
-        const typeParameters = callSignature.getTypeParameters();
-        if (typeParameters === undefined) {
-          console.log("typeParameters が undefined");
+        console.groupEnd();
+        const returnTypeSymbol = callSignature.getReturnType().symbol;
+        if (returnTypeSymbol === undefined) {
+          console.log("戻り値のシンボルが不明だった");
         } else {
-          for (const typeParameter of typeParameters) {
-            console.log("typeParameter", ts.TypeFlags[typeParameter.flags]);
-          }
+          console.log("戻り値", serializeSymbol(returnTypeSymbol, typeChecker));
         }
       }
       // const pattern = type.pattern;
