@@ -2,15 +2,55 @@ import * as ts from "typescript";
 
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
+type ServerCode = {
+  functions: Array<{
+    name: string;
+    arguments: Array<Argument>;
+    return: TypeRef;
+  }>;
+  types: Array<Type>;
+};
+
+type Argument = {
+  name: string;
+  typeRef: TypeRef;
+};
+
+type Type = {
+  name: string;
+  /** ハイライトとか@ とかの構造が残ってるやつ */
+  doc: Array<ts.SymbolDisplayPart>;
+  typeBody: Map<string, Type>;
+};
+
+type TypeRef =
+  | {
+      type: "definitionInServerCode";
+      index: number;
+    }
+  | {
+      type: "primitive";
+      primitiveType: PrimitiveType;
+    };
+
+type PrimitiveType = "string" | "number" | "boolean" | "undefined" | "null";
+
 /** Serialize a symbol into a json object */
-const serializeSymbol = (symbol: ts.Symbol, typeChecker: ts.TypeChecker) => {
+const serializeSymbol = (
+  symbol: ts.Symbol,
+  typeChecker: ts.TypeChecker
+): {
+  name: string;
+  documentation: string;
+  type: string;
+} => {
   return {
     name: symbol.getName(),
     documentation: ts.displayPartsToString(
       symbol.getDocumentationComment(typeChecker)
     ),
     type: typeChecker.typeToString(
-      typeChecker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration!)
+      typeChecker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration)
     )
   };
 };
@@ -27,7 +67,6 @@ const f = (typeChecker: ts.TypeChecker) => (
   console.log("isIntersection", type.isIntersection());
   console.log("isLiteral", type.isLiteral());
   console.log("isUnion", type.isUnion());
-  // type flagが object だからオブジェクトのフィールドとして (): があるかもしれない
 
   const flags = type.flags;
 
@@ -40,9 +79,17 @@ const f = (typeChecker: ts.TypeChecker) => (
       console.log(key.toString() + "の型はobjectだ!");
       const callSignatures = type.getCallSignatures();
       for (const callSignature of callSignatures) {
+        const callSignatureDeclaration = callSignature.getDeclaration();
+        if (callSignatureDeclaration.kind === ts.SyntaxKind.ArrowFunction) {
+          for (const parameter of callSignatureDeclaration.parameters) {
+            console.log(parameter.name.getText());
+          }
+        }
+
         console.log("関数呼び出しの1つの形式を見つけた");
         console.group("引数");
 
+        // 以下のやり方は型の同一性を判別することができない、まとめきった型した取得できない
         for (const parameter of callSignature.getParameters()) {
           console.log(serializeSymbol(parameter, typeChecker));
         }
@@ -54,13 +101,6 @@ const f = (typeChecker: ts.TypeChecker) => (
           console.log("戻り値", serializeSymbol(returnTypeSymbol, typeChecker));
         }
       }
-      // const pattern = type.pattern;
-      // console.log("pattern", pattern);
-      // if (pattern === undefined) {
-      //   console.log("pattern is undef");
-      //   return;
-      // }
-      // console.log("kd", ts.SyntaxKind[pattern.kind]);
     }
   }
 };
@@ -97,5 +137,6 @@ const getExposedVariable = (
 };
 
 getExposedVariable("sample.ts", {
-  target: ts.ScriptTarget.ES2019
+  target: ts.ScriptTarget.ES2019,
+  strict: true
 });
