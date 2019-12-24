@@ -11,6 +11,8 @@ export type User = {
   createdAt: Date;
 };
 
+export type UnionSample = string | number | { obj: string };
+
 /**
  * IDからユーザーの情報を取得する
  * @param id パラメータに対するコメント

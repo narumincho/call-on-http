@@ -4,12 +4,12 @@ import * as ts from "typescript";
 
 type ServerCode = {
   functions: Map<string, Function>;
-  types: Map<string, Type>;
+  typeDefinitions: Map<string, Type>;
 };
 
 type Function = {
-  arguments: Map<string, TypeRef>;
-  return: TypeRef;
+  arguments: Map<string, TypeBody>;
+  return: TypeBody;
 };
 
 type Type = {
@@ -20,33 +20,26 @@ type Type = {
 
 type TypeBody =
   | {
-      type: TypeBodyType.Object;
-      value: Array<{
-        property: string;
-        document: ts.SymbolDisplayPart;
-        typeBody: TypeBodyType;
-      }>;
+      type: "object";
+      map: Map<
+        string,
+        {
+          document: ts.SymbolDisplayPart;
+          typeBody: TypeBody;
+        }
+      >;
     }
-  | { type: TypeBodyType.Ref; index: number }
-  | { type: TypeBodyType.Union; value: ReadonlyArray<TypeBody> };
+  | { type: "referenceInServerCode"; index: number }
+  | { type: "primitive"; primitive: PrimitiveType }
+  | { type: "union"; typeBodies: ReadonlyArray<TypeBody> };
 
-const enum TypeBodyType {
-  Object,
-  Ref,
-  Union
-}
-
-type TypeRef =
-  | {
-      type: "definitionInServerCode";
-      index: number;
-    }
-  | {
-      type: "primitive";
-      primitiveType: PrimitiveType;
-    };
-
-type PrimitiveType = "string" | "number" | "boolean" | "undefined" | "null";
+type PrimitiveType =
+  | "string"
+  | "number"
+  | "boolean"
+  | "undefined"
+  | "null"
+  | "never";
 
 /** Serialize a symbol into a json object */
 const serializeSymbol = (
@@ -152,14 +145,52 @@ const nodeToString = (
   );
 };
 
-const declarationTo = (
-  declaration: ts.Declaration,
-  typeChecker: ts.TypeChecker
-): void => {
-  if (ts.isTypeAliasDeclaration(declaration)) {
-    console.log("型を定義している");
-    console.log(nodeToString(declaration, 0, typeChecker));
+const nodeToType = (typeChecker: ts.TypeChecker) => (
+  node: ts.Node
+): TypeBody => {
+  switch (node.kind) {
+    case ts.SyntaxKind.StringKeyword:
+      return {
+        type: "primitive",
+        primitive: "string"
+      };
+    case ts.SyntaxKind.NumberKeyword:
+      return {
+        type: "primitive",
+        primitive: "number"
+      };
+    case ts.SyntaxKind.BooleanKeyword:
+      return {
+        type: "primitive",
+        primitive: "boolean"
+      };
+    case ts.SyntaxKind.UndefinedKeyword:
+      return {
+        type: "primitive",
+        primitive: "undefined"
+      };
+    case ts.SyntaxKind.NullKeyword:
+      return {
+        type: "primitive",
+        primitive: "null"
+      };
+    case ts.SyntaxKind.NeverKeyword:
+      return {
+        type: "primitive",
+        primitive: "never"
+      };
+    /*
+    TODO
+    object , ref, union
+  */
   }
+  const typeBody: TypeBody | undefined = node.forEachChild(
+    nodeToType(typeChecker)
+  );
+  if (typeBody === undefined) {
+    throw new Error("型の解析に使えるものがforEachChildで手に入らなかった");
+  }
+  return typeBody;
 };
 
 /**
@@ -179,8 +210,6 @@ const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): ReadonlyArray<T> => {
 
 /**
  * export されるシンボルを型定義と関数定義に分ける (宣言本体は解析しない)
- * @param symbolArray
- * @param typeChecker
  */
 const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
   symbolArray: ReadonlyArray<[ts.__String, ts.Symbol]>,
@@ -190,18 +219,24 @@ const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
     string,
     { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
   >;
-  types: Map<
+  typeDefinitions: Map<
     string,
-    { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
+    {
+      document: Array<ts.SymbolDisplayPart>;
+      declaration: ts.TypeAliasDeclaration;
+    }
   >;
 } => {
   const functions = new Map<
     string,
     { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
   >();
-  const types = new Map<
+  const typeDefinitions = new Map<
     string,
-    { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
+    {
+      document: Array<ts.SymbolDisplayPart>;
+      declaration: ts.TypeAliasDeclaration;
+    }
   >();
   for (const [key, symbol] of symbolArray) {
     switch (symbol.flags) {
@@ -216,7 +251,12 @@ const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
         if (declaration === undefined) {
           throw new Error("型定義の本体がない");
         }
-        types.set(key.toString(), {
+        if (!ts.isTypeAliasDeclaration(declaration)) {
+          throw new Error(
+            "TypeAliasのdeclarationがTypeAliasDeclarationでなかった"
+          );
+        }
+        typeDefinitions.set(key.toString(), {
           document: symbol.getDocumentationComment(typeChecker),
           declaration: declaration
         });
@@ -226,7 +266,7 @@ const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
   }
   return {
     functions: functions,
-    types: types
+    typeDefinitions: typeDefinitions
   };
 };
 
@@ -269,10 +309,14 @@ const serverCodeFromFile = (
     typeChecker
   );
   const types: Map<string, Type> = new Map();
-  for (const [key, type] of functionsAndTypesBeforeReadDeclaration.types) {
+  for (const [
+    key,
+    type
+  ] of functionsAndTypesBeforeReadDeclaration.typeDefinitions) {
+    console.log(nodeToString(type.declaration, 0, typeChecker));
     types.set(key, {
       document: type.document,
-      typeBody: type.declaration
+      typeBody: nodeToType(typeChecker)(type.declaration)
     });
   }
 };
