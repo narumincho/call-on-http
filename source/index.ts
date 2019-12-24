@@ -3,27 +3,38 @@ import * as ts from "typescript";
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
 type ServerCode = {
-  functions: Array<Function>;
-  types: Array<Type>;
+  functions: Map<string, Function>;
+  types: Map<string, Type>;
 };
 
 type Function = {
-  name: string;
-  arguments: Array<Argument>;
+  arguments: Map<string, TypeRef>;
   return: TypeRef;
 };
 
-type Argument = {
-  name: string;
-  typeRef: TypeRef;
+type Type = {
+  /** ハイライトとか@ とかの構造が残ってるやつ */
+  document: Array<ts.SymbolDisplayPart>;
+  typeBody: TypeBody;
 };
 
-type Type = {
-  name: string;
-  /** ハイライトとか@ とかの構造が残ってるやつ */
-  doc: Array<ts.SymbolDisplayPart>;
-  typeBody: Map<string, Type>;
-};
+type TypeBody =
+  | {
+      type: TypeBodyType.Object;
+      value: Array<{
+        property: string;
+        document: ts.SymbolDisplayPart;
+        typeBody: TypeBodyType;
+      }>;
+    }
+  | { type: TypeBodyType.Ref; index: number }
+  | { type: TypeBodyType.Union; value: ReadonlyArray<TypeBody> };
+
+const enum TypeBodyType {
+  Object,
+  Ref,
+  Union
+}
 
 type TypeRef =
   | {
@@ -107,6 +118,54 @@ const f = (typeChecker: ts.TypeChecker) => (
   }
 };
 
+const nodeToString = (
+  node: ts.Node,
+  indent: number,
+  typeChecker: ts.TypeChecker
+): string => {
+  let text = "";
+  node.forEachChild(node => {
+    text += "\n" + nodeToString(node, indent + 1, typeChecker);
+  });
+  const symbolText = ((): string => {
+    const symbol = ((node as unknown) as {
+      symbol: ts.Symbol | undefined;
+    }).symbol;
+    if (symbol === undefined) {
+      return "[s?]";
+    }
+    return JSON.stringify(serializeSymbol(symbol, typeChecker));
+  })();
+
+  return (
+    "  ".repeat(indent) +
+    "(" +
+    ts.SyntaxKind[node.kind] +
+    "," +
+    node.getText() +
+    "," +
+    symbolText +
+    text +
+    "\n" +
+    "  ".repeat(indent) +
+    ")"
+  );
+};
+
+const declarationTo = (
+  declaration: ts.Declaration,
+  typeChecker: ts.TypeChecker
+): void => {
+  if (ts.isTypeAliasDeclaration(declaration)) {
+    console.log("型を定義している");
+    console.log(nodeToString(declaration, 0, typeChecker));
+  }
+};
+
+/**
+ * TypeScriptコンパイラ内部で使われているIteratorをArrayに変換する
+ * @param tsIterator
+ */
 const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): ReadonlyArray<T> => {
   const array: Array<T> = [];
   while (true) {
@@ -116,6 +175,59 @@ const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): ReadonlyArray<T> => {
     }
     array.push(nextResult.value);
   }
+};
+
+/**
+ * export されるシンボルを型定義と関数定義に分ける (宣言本体は解析しない)
+ * @param symbolArray
+ * @param typeChecker
+ */
+const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
+  symbolArray: ReadonlyArray<[ts.__String, ts.Symbol]>,
+  typeChecker: ts.TypeChecker
+): {
+  functions: Map<
+    string,
+    { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
+  >;
+  types: Map<
+    string,
+    { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
+  >;
+} => {
+  const functions = new Map<
+    string,
+    { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
+  >();
+  const types = new Map<
+    string,
+    { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
+  >();
+  for (const [key, symbol] of symbolArray) {
+    switch (symbol.flags) {
+      case ts.SymbolFlags.BlockScopedVariable:
+        functions.set(key.toString(), {
+          document: symbol.getDocumentationComment(typeChecker),
+          declaration: symbol.valueDeclaration
+        });
+        break;
+      case ts.SymbolFlags.TypeAlias: {
+        const declaration: ts.Declaration | undefined = symbol.declarations[0];
+        if (declaration === undefined) {
+          throw new Error("型定義の本体がない");
+        }
+        types.set(key.toString(), {
+          document: symbol.getDocumentationComment(typeChecker),
+          declaration: declaration
+        });
+        break;
+      }
+    }
+  }
+  return {
+    functions: functions,
+    types: types
+  };
 };
 
 /**
@@ -131,8 +243,6 @@ const serverCodeFromFile = (
     rootNames: [fileName],
     options: compilerOptions
   });
-  const typeChecker = program.getTypeChecker();
-
   const sourceFile = program.getSourceFile(fileName);
   if (sourceFile === undefined) {
     throw new Error("指定したファイルをソースファイルとして認識できなかった");
@@ -145,17 +255,31 @@ const serverCodeFromFile = (
       "外部へのエクスポートされる関数があるモジュールではなかった"
     );
   }
-  const symbolTable = ((sourceFile as unknown) as { symbol: ts.Symbol }).symbol
-    .exports;
-  if (symbolTable === undefined) {
+  const typeChecker = program.getTypeChecker();
+  const sourceFileSymbol = typeChecker.getSymbolAtLocation(sourceFile);
+  if (sourceFileSymbol === undefined) {
+    throw new Error("sourceFileがSymbolとして認識されなかった");
+  }
+  const sourceFileExports = sourceFileSymbol.exports;
+  if (sourceFileExports === undefined) {
     throw new Error("symbolTableを取得できなかった");
   }
-  tsIteratorToArray(symbolTable.entries()).map(([key, symbol]): void => {
-    console.log(key, serializeSymbol(symbol, typeChecker));
-  });
+  const functionsAndTypesBeforeReadDeclaration = symbolArrayToFunctionsAndTypesBeforeReadDeclaration(
+    tsIteratorToArray(sourceFileExports.entries()),
+    typeChecker
+  );
+  const types: Map<string, Type> = new Map();
+  for (const [key, type] of functionsAndTypesBeforeReadDeclaration.types) {
+    types.set(key, {
+      document: type.document,
+      typeBody: type.declaration
+    });
+  }
 };
 
-serverCodeFromFile("sample.ts", {
-  target: ts.ScriptTarget.ES2019,
-  strict: true
-});
+console.log(
+  serverCodeFromFile("sample.ts", {
+    target: ts.ScriptTarget.ES2019,
+    strict: true
+  })
+);

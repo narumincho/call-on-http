@@ -2,7 +2,7 @@
 export const constantValue: string = "stringValue";
 
 /** ユーザー */
-type User = {
+export type User = {
   /** 名前 */
   name: string;
   /** 年齢 */
