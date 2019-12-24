@@ -3,12 +3,14 @@ import * as ts from "typescript";
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
 type ServerCode = {
-  functions: Array<{
-    name: string;
-    arguments: Array<Argument>;
-    return: TypeRef;
-  }>;
+  functions: Array<Function>;
   types: Array<Type>;
+};
+
+type Function = {
+  name: string;
+  arguments: Array<Argument>;
+  return: TypeRef;
 };
 
 type Argument = {
@@ -105,13 +107,29 @@ const f = (typeChecker: ts.TypeChecker) => (
   }
 };
 
-const getExposedVariable = (
+const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): ReadonlyArray<T> => {
+  const array: Array<T> = [];
+  while (true) {
+    const nextResult = tsIterator.next();
+    if (nextResult.done) {
+      return array;
+    }
+    array.push(nextResult.value);
+  }
+};
+
+/**
+ * ファイルからサーバーのコードを解析してコード生成に必要な情報を収集する
+ * @param fileName ファイル名
+ * @param compilerOptions コンパイルオプション strict: trueでないといけない
+ */
+const serverCodeFromFile = (
   fileName: string,
-  option: ts.CompilerOptions
-): void => {
+  compilerOptions: ts.CompilerOptions & { strict: true }
+): ServerCode => {
   const program = ts.createProgram({
     rootNames: [fileName],
-    options: option
+    options: compilerOptions
   });
   const typeChecker = program.getTypeChecker();
 
@@ -130,13 +148,14 @@ const getExposedVariable = (
   const symbolTable = ((sourceFile as unknown) as { symbol: ts.Symbol }).symbol
     .exports;
   if (symbolTable === undefined) {
-    console.log("symbolTableを取得できなかった");
-    return;
+    throw new Error("symbolTableを取得できなかった");
   }
-  symbolTable.forEach(f(typeChecker));
+  tsIteratorToArray(symbolTable.entries()).map(([key, symbol]): void => {
+    console.log(key, serializeSymbol(symbol, typeChecker));
+  });
 };
 
-getExposedVariable("sample.ts", {
+serverCodeFromFile("sample.ts", {
   target: ts.ScriptTarget.ES2019,
   strict: true
 });
