@@ -11,6 +11,8 @@ export type User = {
   createdAt: Date;
 };
 
+export type UseRef = User;
+
 export type UnionSample = string | number | { obj: string };
 
 /**

@@ -4,34 +4,28 @@ import * as ts from "typescript";
 
 type ServerCode = {
   functions: Map<string, Function>;
-  typeDefinitions: Map<string, Type>;
+  typeDefinitions: Map<string, TypeWithDocument>;
 };
 
 type Function = {
-  arguments: Map<string, TypeBody>;
-  return: TypeBody;
+  arguments: Map<string, Type>;
+  return: Type;
 };
 
-type Type = {
+type TypeWithDocument = {
   /** ハイライトとか@ とかの構造が残ってるやつ */
   document: Array<ts.SymbolDisplayPart>;
-  typeBody: TypeBody;
+  typeBody: Type;
 };
 
-type TypeBody =
+type Type =
   | {
       type: "object";
-      map: Map<
-        string,
-        {
-          document: ts.SymbolDisplayPart;
-          typeBody: TypeBody;
-        }
-      >;
+      members: Map<string, TypeWithDocument>;
     }
-  | { type: "referenceInServerCode"; index: number }
+  | { type: "referenceInServerCode"; name: string }
   | { type: "primitive"; primitive: PrimitiveType }
-  | { type: "union"; typeBodies: ReadonlyArray<TypeBody> };
+  | { type: "union"; types: ReadonlyArray<Type> };
 
 type PrimitiveType =
   | "string"
@@ -61,6 +55,10 @@ const serializeSymbol = (
   };
 };
 
+/**
+ * TODO
+ * ts.Typeからプロパティのドキュメントが取得できるなら  ts.getDeclaredTypeOfSymbol から計算された型を利用できる?
+ */
 const f = (typeChecker: ts.TypeChecker) => (
   value: ts.Symbol,
   key: ts.__String
@@ -145,9 +143,10 @@ const nodeToString = (
   );
 };
 
-const nodeToType = (typeChecker: ts.TypeChecker) => (
-  node: ts.Node
-): TypeBody => {
+const nodeToType = <T>(
+  typeChecker: ts.TypeChecker,
+  typeHeader: Map<string, T>
+) => (node: ts.TypeNode): Type => {
   switch (node.kind) {
     case ts.SyntaxKind.StringKeyword:
       return {
@@ -179,18 +178,63 @@ const nodeToType = (typeChecker: ts.TypeChecker) => (
         type: "primitive",
         primitive: "never"
       };
-    /*
-    TODO
-    object , ref, union
-  */
   }
-  const typeBody: TypeBody | undefined = node.forEachChild(
-    nodeToType(typeChecker)
-  );
-  if (typeBody === undefined) {
-    throw new Error("型の解析に使えるものがforEachChildで手に入らなかった");
+  if (ts.isTypeLiteralNode(node)) {
+    const members: Map<
+      string,
+      {
+        document: Array<ts.SymbolDisplayPart>;
+        typeBody: Type;
+      }
+    > = new Map();
+
+    for (const member of node.members) {
+      if (!ts.isPropertySignature(member)) {
+        throw new Error(
+          "型のオブジェクトのメンバーがPropertySignatureではなかった"
+        );
+      }
+      const memberType = member.type;
+      if (memberType === undefined) {
+        throw new Error("メンバーの型が不明だった");
+      }
+      members.set(member.name.toString(), {
+        document: ((member as unknown) as {
+          symbol: ts.Symbol;
+        }).symbol.getDocumentationComment(typeChecker),
+        typeBody: nodeToType(typeChecker, typeHeader)(memberType)
+      });
+    }
+    return {
+      type: "object",
+      members: members
+    };
   }
-  return typeBody;
+  if (ts.isTypeReferenceNode(node)) {
+    const typeName = node.typeName;
+    if (!ts.isIdentifier(typeName)) {
+      throw new Error("名前の参照の仕方がIdentifierではなかった");
+    }
+    if (!typeHeader.has(typeName.text)) {
+      console.log(node.getFullText());
+      throw new Error(
+        "型" +
+          typeName.text +
+          "が見つからなかった。exportで関数で参照する型はすべて直下にexportされている必要があります"
+      );
+    }
+    return {
+      type: "referenceInServerCode",
+      name: typeName.text
+    };
+  }
+  if (ts.isUnionTypeNode(node)) {
+    return {
+      type: "union",
+      types: node.types.map(nodeToType(typeChecker, typeHeader))
+    };
+  }
+  throw new Error("サポートされていない型の表現を受け取った");
 };
 
 /**
@@ -308,15 +352,21 @@ const serverCodeFromFile = (
     tsIteratorToArray(sourceFileExports.entries()),
     typeChecker
   );
-  const types: Map<string, Type> = new Map();
+  const types: Map<string, TypeWithDocument> = new Map();
   for (const [
     key,
     type
   ] of functionsAndTypesBeforeReadDeclaration.typeDefinitions) {
-    console.log(nodeToString(type.declaration, 0, typeChecker));
-    types.set(key, {
-      document: type.document,
-      typeBody: nodeToType(typeChecker)(type.declaration)
+    type.declaration.forEachChild(child => {
+      if (ts.isTypeNode(child)) {
+        types.set(key, {
+          document: type.document,
+          typeBody: nodeToType(
+            typeChecker,
+            functionsAndTypesBeforeReadDeclaration.typeDefinitions
+          )(child)
+        });
+      }
     });
   }
 };
