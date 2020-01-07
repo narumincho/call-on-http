@@ -33,3 +33,7 @@ export const functionWithOutReturnType = (id: string) => {
     data: 32
   };
 };
+
+export function functionStyleFunction(params: string): string {
+  return "ok";
+}

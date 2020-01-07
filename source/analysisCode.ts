@@ -1,264 +1,15 @@
-import * as ts from "typescript";
 import * as type from "./type";
+import * as tsm from "ts-morph";
 
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
-type ServerCodeWithTsType = {
-  functionMap: FunctionMapWithTsType;
-  typeHeader: TypeHeader;
-};
-
-type FunctionMapWithTsType = Map<
-  string,
-  {
-    document: Array<ts.SymbolDisplayPart>;
-    arguments: Map<string, ts.Type>;
-    return: ts.Type;
+const tsmTypeToType = (
+  typeDictionary: Map<string, tsm.TypeAliasDeclaration>
+) => (tsmType: tsm.Type): type.Type => {
+  if (tsmType.isString()) {
+    return { type: "primitive", primitive: "string" };
   }
->;
-
-type TypeHeader = Map<
-  string,
-  {
-    document: Array<ts.SymbolDisplayPart>;
-    declaration: ts.TypeAliasDeclaration;
-  }
->;
-
-/** Serialize a symbol into a json object */
-const serializeSymbol = (
-  symbol: ts.Symbol,
-  typeChecker: ts.TypeChecker
-): {
-  name: string;
-  documentation: string;
-  type: string;
-} => {
-  return {
-    name: symbol.getName(),
-    documentation: ts.displayPartsToString(
-      symbol.getDocumentationComment(typeChecker)
-    ),
-    type: typeChecker.typeToString(
-      typeChecker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration)
-    )
-  };
-};
-
-const typeAliasDeclarationGetType = (
-  typeAlias: ts.TypeAliasDeclaration
-): ts.TypeNode => {
-  let typeNode: null | ts.TypeNode = null;
-  typeAlias.forEachChild(child => {
-    if (ts.isTypeNode(child)) {
-      typeNode = child;
-    }
-  });
-  if (typeNode === null) {
-    throw new Error("typeAliasDeclarationかTypeNodeを取得できなかった");
-  }
-  return typeNode;
-};
-
-const symbolToNameAndTsType = (typeChecker: ts.TypeChecker) => (
-  symbol: ts.Symbol
-): { name: string; tsType: ts.Type } => ({
-  name: symbol.name,
-  tsType: typeChecker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration)
-});
-
-const nodeToType = <T>(
-  typeChecker: ts.TypeChecker,
-  typeHeader: Map<string, T>
-) => (node: ts.TypeNode): type.Type => {
-  switch (node.kind) {
-    case ts.SyntaxKind.StringKeyword:
-      return {
-        type: "primitive",
-        primitive: "string"
-      };
-    case ts.SyntaxKind.NumberKeyword:
-      return {
-        type: "primitive",
-        primitive: "number"
-      };
-    case ts.SyntaxKind.BooleanKeyword:
-      return {
-        type: "primitive",
-        primitive: "boolean"
-      };
-    case ts.SyntaxKind.UndefinedKeyword:
-      return {
-        type: "primitive",
-        primitive: "undefined"
-      };
-    case ts.SyntaxKind.NullKeyword:
-      return {
-        type: "primitive",
-        primitive: "null"
-      };
-    case ts.SyntaxKind.NeverKeyword:
-      return {
-        type: "primitive",
-        primitive: "never"
-      };
-  }
-  if (ts.isTypeLiteralNode(node)) {
-    const members: Map<
-      string,
-      {
-        document: Array<ts.SymbolDisplayPart>;
-        typeBody: type.Type;
-      }
-    > = new Map();
-
-    for (const member of node.members) {
-      if (!ts.isPropertySignature(member)) {
-        throw new Error(
-          "型のオブジェクトのメンバーがPropertySignatureではなかった"
-        );
-      }
-      const memberType = member.type;
-      if (memberType === undefined) {
-        throw new Error("メンバーの型が不明だった");
-      }
-      members.set(member.name.toString(), {
-        document: ((member as unknown) as {
-          symbol: ts.Symbol;
-        }).symbol.getDocumentationComment(typeChecker),
-        typeBody: nodeToType(typeChecker, typeHeader)(memberType)
-      });
-    }
-    return {
-      type: "object",
-      members: members
-    };
-  }
-  if (ts.isTypeReferenceNode(node)) {
-    const typeName = node.typeName;
-    if (!ts.isIdentifier(typeName)) {
-      throw new Error("名前の参照の仕方がIdentifierではなかった");
-    }
-    if (!typeHeader.has(typeName.text)) {
-      console.log(node.getFullText());
-      throw new Error(
-        "型" +
-          typeName.text +
-          "が見つからなかった。exportで関数で参照する型はすべて直下にexportされている必要があります"
-      );
-    }
-    return {
-      type: "referenceInServerCode",
-      name: typeName.text
-    };
-  }
-  if (ts.isUnionTypeNode(node)) {
-    return {
-      type: "union",
-      types: node.types.map(nodeToType(typeChecker, typeHeader))
-    };
-  }
-  throw new Error("サポートされていない型の表現を受け取った");
-};
-
-const tsTypeToType = <T>(
-  typeChecker: ts.TypeChecker,
-  typeHeader: Map<string, T>
-) => (tsType: ts.Type): type.Type => {
-  switch (tsType.flags) {
-    case ts.TypeFlags.String:
-      return { type: "primitive", primitive: "string" };
-    case ts.TypeFlags.Number:
-      return { type: "primitive", primitive: "number" };
-    case ts.TypeFlags.Boolean:
-      return { type: "primitive", primitive: "boolean" };
-    case ts.TypeFlags.Undefined:
-      return { type: "primitive", primitive: "undefined" };
-    case ts.TypeFlags.Null:
-      return { type: "primitive", primitive: "null" };
-    case ts.TypeFlags.Never:
-      return { type: "primitive", primitive: "never" };
-    case ts.TypeFlags.Object: {
-      // TODO
-      console.log(tsType.pattern?.flags);
-    }
-  }
-  return { type: "primitive", primitive: "never" };
-};
-
-/**
- * TypeScriptコンパイラ内部で使われているIteratorをArrayに変換する
- * @param tsIterator
- */
-const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): ReadonlyArray<T> => {
-  const array: Array<T> = [];
-  while (true) {
-    const nextResult = tsIterator.next();
-    if (nextResult.done) {
-      return array;
-    }
-    array.push(nextResult.value);
-  }
-};
-
-/**
- * export されるシンボルを型定義と関数定義に分ける (宣言本体は解析しない)
- */
-const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
-  symbolArray: ReadonlyArray<[ts.__String, ts.Symbol]>,
-  typeChecker: ts.TypeChecker
-): ServerCodeWithTsType => {
-  const functions: FunctionMapWithTsType = new Map();
-  const typeDefinitions: TypeHeader = new Map();
-  for (const [key, symbol] of symbolArray) {
-    switch (symbol.flags) {
-      case ts.SymbolFlags.BlockScopedVariable: {
-        const type = typeChecker.getTypeOfSymbolAtLocation(
-          symbol,
-          symbol.valueDeclaration
-        );
-        if (type.flags !== ts.TypeFlags.Object) {
-          throw new Error("公開している変数の型が関数でなかった");
-        }
-        const callSignatures = type.getCallSignatures();
-        if (callSignatures.length !== 1) {
-          throw new Error("関数呼び出しの形式は1つでなければなりません");
-        }
-        const callSignature = callSignatures[0];
-        functions.set(key.toString(), {
-          document: symbol.getDocumentationComment(typeChecker),
-          arguments: new Map(
-            callSignature
-              .getParameters()
-              .map(symbolToNameAndTsType(typeChecker))
-              .map(({ name, tsType }) => [name, tsType])
-          ),
-          return: callSignature.getReturnType()
-        });
-        break;
-      }
-      case ts.SymbolFlags.TypeAlias: {
-        const declaration: ts.Declaration | undefined = symbol.declarations[0];
-        if (declaration === undefined) {
-          throw new Error("型定義の本体がない");
-        }
-        if (!ts.isTypeAliasDeclaration(declaration)) {
-          throw new Error(
-            "TypeAliasのdeclarationがTypeAliasDeclarationでなかった"
-          );
-        }
-        typeDefinitions.set(key.toString(), {
-          document: symbol.getDocumentationComment(typeChecker),
-          declaration: declaration
-        });
-        break;
-      }
-    }
-  }
-  return {
-    functionMap: functions,
-    typeHeader: typeDefinitions
-  };
+  return { type: "primitive", primitive: "string" };
 };
 
 /**
@@ -267,72 +18,59 @@ const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
  * @param compilerOptions コンパイルオプション strict: trueでないといけない
  */
 export const serverCodeFromFile = (
-  fileName: string,
-  compilerOptions: ts.CompilerOptions & { strict: true }
-): type.ServerCode => {
-  const program = ts.createProgram({
-    rootNames: [fileName],
-    options: compilerOptions
+  tsConfigFilePath: string,
+  compilerOptions: tsm.CompilerOptions & { strict: true }
+): void => {
+  const project = new tsm.Project({
+    tsConfigFilePath: tsConfigFilePath,
+    compilerOptions: compilerOptions
   });
-  const sourceFile = program.getSourceFile(fileName);
-  if (sourceFile === undefined) {
-    throw new Error("指定したファイルをソースファイルとして認識できなかった");
+
+  for (const sourceFile of project.getSourceFiles()) {
+    if (sourceFile.isDeclarationFile()) {
+      console.log("指定したファイルが型定義ファイル(.d.ts)だった");
+    }
+    const typeAliases = sourceFile.getTypeAliases();
+    const functionList = sourceFile.getFunctions();
+    const variableDeclarationList = sourceFile.getVariableDeclarations();
+
+    const typeDictionary: Map<string, tsm.TypeAliasDeclaration> = new Map();
+    for (const typeAlias of typeAliases) {
+      if (typeAlias.isExported()) {
+        typeDictionary.set(
+          typeAlias.getSymbolOrThrow().getFullyQualifiedName(),
+          typeAlias
+        );
+      }
+    }
+    const typeMap: Map<string, type.TypeData> = new Map();
+    for (const typeAliasDeclaration of typeDictionary.values()) {
+      typeMap.set(typeAliasDeclaration.getName(), {
+        document: typeAliasDeclaration.getJsDocs(),
+        typeBody: tsmTypeToType(typeDictionary)(typeAliasDeclaration.getType())
+      });
+    }
+    const functionMap: Map<string, type.FunctionData> = new Map();
+    for (const func of functionList) {
+      if (!func.isExported()) {
+        continue;
+      }
+      functionMap.set(func.getNameOrThrow(), {
+        document: func.getJsDocs(),
+        parameters: func
+          .getParameters()
+          .map(parameter => [
+            parameter.getName(),
+            tsmTypeToType(typeDictionary)(parameter.getType())
+          ]),
+        return: tsmTypeToType(typeDictionary)(func.getReturnType())
+      });
+    }
+    for (const variableDeclaration of variableDeclarationList) {
+      if (!variableDeclaration.isExported()) {
+        continue;
+      }
+      variableDeclaration.getType();
+    }
   }
-  if (sourceFile.isDeclarationFile) {
-    throw new Error("指定したファイルが型定義ファイル(.d.ts)だった");
-  }
-  if (!ts.isExternalModule(sourceFile)) {
-    throw new Error(
-      "外部へのエクスポートされる関数があるモジュールではなかった"
-    );
-  }
-  const typeChecker = program.getTypeChecker();
-  const sourceFileSymbol = typeChecker.getSymbolAtLocation(sourceFile);
-  if (sourceFileSymbol === undefined) {
-    throw new Error("sourceFileがSymbolとして認識されなかった");
-  }
-  const sourceFileExports = sourceFileSymbol.exports;
-  if (sourceFileExports === undefined) {
-    throw new Error("symbolTableを取得できなかった");
-  }
-  const functionsAndTypesBeforeReadDeclaration = symbolArrayToFunctionsAndTypesBeforeReadDeclaration(
-    tsIteratorToArray(sourceFileExports.entries()),
-    typeChecker
-  );
-  const types: Map<string, type.TypeWithDocument> = new Map();
-  for (const [key, type] of functionsAndTypesBeforeReadDeclaration.typeHeader) {
-    types.set(key, {
-      document: type.document,
-      typeBody: nodeToType(
-        typeChecker,
-        functionsAndTypesBeforeReadDeclaration.typeHeader
-      )(typeAliasDeclarationGetType(type.declaration))
-    });
-  }
-  const functionMap: Map<string, type.Function> = new Map();
-  for (const [
-    key,
-    func
-  ] of functionsAndTypesBeforeReadDeclaration.functionMap) {
-    functionMap.set(key, {
-      document: func.document,
-      arguments: new Map(
-        [...func.arguments].map(([name, type]) => [
-          name,
-          tsTypeToType(
-            typeChecker,
-            functionsAndTypesBeforeReadDeclaration.typeHeader
-          )(type)
-        ])
-      ),
-      return: tsTypeToType(
-        typeChecker,
-        functionsAndTypesBeforeReadDeclaration.typeHeader
-      )(func.return)
-    });
-  }
-  return {
-    functions: functionMap,
-    typeDefinitions: types
-  };
 };

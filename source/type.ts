@@ -1,25 +1,25 @@
-import * as ts from "typescript";
+import * as tsm from "ts-morph";
 
 export type ServerCode = {
-  functions: Map<string, Function>;
-  typeDefinitions: Map<string, TypeWithDocument>;
+  functions: Map<string, FunctionData>;
+  typeDefinitions: Map<string, TypeData>;
 };
 
-export type Function = {
-  document: Array<ts.SymbolDisplayPart>;
-  arguments: Map<string, Type>;
+export type FunctionData = {
+  document: ReadonlyArray<tsm.JSDoc>;
+  parameters: ReadonlyArray<[string, Type]>;
   return: Type;
 };
 
-export type TypeWithDocument = {
-  document: Array<ts.SymbolDisplayPart>;
+export type TypeData = {
+  document: Array<tsm.JSDoc>;
   typeBody: Type;
 };
 
 export type Type =
   | {
       type: "object";
-      members: Map<string, TypeWithDocument>;
+      members: Map<string, TypeData>;
     }
   | { type: "referenceInServerCode"; name: string }
   | { type: "primitive"; primitive: PrimitiveType }
