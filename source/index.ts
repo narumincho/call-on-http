@@ -8,12 +8,12 @@ type ServerCode = {
 };
 
 type Function = {
+  document: Array<ts.SymbolDisplayPart>;
   arguments: Map<string, Type>;
   return: Type;
 };
 
 type TypeWithDocument = {
-  /** ハイライトとか@ とかの構造が残ってるやつ */
   document: Array<ts.SymbolDisplayPart>;
   typeBody: Type;
 };
@@ -35,6 +35,28 @@ type PrimitiveType =
   | "null"
   | "never";
 
+type ServerCodeWithTsType = {
+  functionMap: FunctionMapWithTsType;
+  typeHeader: TypeHeader;
+};
+
+type FunctionMapWithTsType = Map<
+  string,
+  {
+    document: Array<ts.SymbolDisplayPart>;
+    arguments: Map<string, ts.Type>;
+    return: ts.Type;
+  }
+>;
+
+type TypeHeader = Map<
+  string,
+  {
+    document: Array<ts.SymbolDisplayPart>;
+    declaration: ts.TypeAliasDeclaration;
+  }
+>;
+
 /** Serialize a symbol into a json object */
 const serializeSymbol = (
   symbol: ts.Symbol,
@@ -55,93 +77,27 @@ const serializeSymbol = (
   };
 };
 
-/**
- * TODO
- * ts.Typeからプロパティのドキュメントが取得できるなら  ts.getDeclaredTypeOfSymbol から計算された型を利用できる?
- */
-const f = (typeChecker: ts.TypeChecker) => (
-  value: ts.Symbol,
-  key: ts.__String
-): void => {
-  console.log();
-  console.log(key);
-  const declaration = value.valueDeclaration;
-  const type = typeChecker.getTypeOfSymbolAtLocation(value, declaration);
-  console.log("isClassOrInterface", type.isClassOrInterface());
-  console.log("isIntersection", type.isIntersection());
-  console.log("isLiteral", type.isLiteral());
-  console.log("isUnion", type.isUnion());
-
-  const flags = type.flags;
-
-  switch (flags) {
-    case ts.TypeFlags.String: {
-      console.log(key.toString() + "の型はstringだ!");
-      return;
+const typeAliasDeclarationGetType = (
+  typeAlias: ts.TypeAliasDeclaration
+): ts.TypeNode => {
+  let typeNode: null | ts.TypeNode = null;
+  typeAlias.forEachChild(child => {
+    if (ts.isTypeNode(child)) {
+      typeNode = child;
     }
-    case ts.TypeFlags.Object: {
-      console.log(key.toString() + "の型はobjectだ!");
-      const callSignatures = type.getCallSignatures();
-      for (const callSignature of callSignatures) {
-        const callSignatureDeclaration = callSignature.getDeclaration();
-        if (callSignatureDeclaration.kind === ts.SyntaxKind.ArrowFunction) {
-          for (const parameter of callSignatureDeclaration.parameters) {
-            console.log(parameter.name.getText());
-          }
-        }
-
-        console.log("関数呼び出しの1つの形式を見つけた");
-        console.group("引数");
-
-        // 以下のやり方は型の同一性を判別することができない、まとめきった型した取得できない
-        for (const parameter of callSignature.getParameters()) {
-          console.log(serializeSymbol(parameter, typeChecker));
-        }
-        console.groupEnd();
-        const returnTypeSymbol = callSignature.getReturnType().symbol;
-        if (returnTypeSymbol === undefined) {
-          console.log("戻り値のシンボルが不明だった");
-        } else {
-          console.log("戻り値", serializeSymbol(returnTypeSymbol, typeChecker));
-        }
-      }
-    }
-  }
-};
-
-const nodeToString = (
-  node: ts.Node,
-  indent: number,
-  typeChecker: ts.TypeChecker
-): string => {
-  let text = "";
-  node.forEachChild(node => {
-    text += "\n" + nodeToString(node, indent + 1, typeChecker);
   });
-  const symbolText = ((): string => {
-    const symbol = ((node as unknown) as {
-      symbol: ts.Symbol | undefined;
-    }).symbol;
-    if (symbol === undefined) {
-      return "[s?]";
-    }
-    return JSON.stringify(serializeSymbol(symbol, typeChecker));
-  })();
-
-  return (
-    "  ".repeat(indent) +
-    "(" +
-    ts.SyntaxKind[node.kind] +
-    "," +
-    node.getText() +
-    "," +
-    symbolText +
-    text +
-    "\n" +
-    "  ".repeat(indent) +
-    ")"
-  );
+  if (typeNode === null) {
+    throw new Error("typeAliasDeclarationかTypeNodeを取得できなかった");
+  }
+  return typeNode;
 };
+
+const symbolToNameAndTsType = (typeChecker: ts.TypeChecker) => (
+  symbol: ts.Symbol
+): { name: string; tsType: ts.Type } => ({
+  name: symbol.name,
+  tsType: typeChecker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration)
+});
 
 const nodeToType = <T>(
   typeChecker: ts.TypeChecker,
@@ -237,6 +193,30 @@ const nodeToType = <T>(
   throw new Error("サポートされていない型の表現を受け取った");
 };
 
+const tsTypeToType = <T>(
+  typeChecker: ts.TypeChecker,
+  typeHeader: Map<string, T>
+) => (tsType: ts.Type): Type => {
+  switch (tsType.flags) {
+    case ts.TypeFlags.String:
+      return { type: "primitive", primitive: "string" };
+    case ts.TypeFlags.Number:
+      return { type: "primitive", primitive: "number" };
+    case ts.TypeFlags.Boolean:
+      return { type: "primitive", primitive: "boolean" };
+    case ts.TypeFlags.Undefined:
+      return { type: "primitive", primitive: "undefined" };
+    case ts.TypeFlags.Null:
+      return { type: "primitive", primitive: "null" };
+    case ts.TypeFlags.Never:
+      return { type: "primitive", primitive: "never" };
+    case ts.TypeFlags.Object: {
+      console.log(tsType.pattern?.flags);
+    }
+  }
+  return { type: "primitive", primitive: "never" };
+};
+
 /**
  * TypeScriptコンパイラ内部で使われているIteratorをArrayに変換する
  * @param tsIterator
@@ -258,38 +238,36 @@ const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): ReadonlyArray<T> => {
 const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
   symbolArray: ReadonlyArray<[ts.__String, ts.Symbol]>,
   typeChecker: ts.TypeChecker
-): {
-  functions: Map<
-    string,
-    { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
-  >;
-  typeDefinitions: Map<
-    string,
-    {
-      document: Array<ts.SymbolDisplayPart>;
-      declaration: ts.TypeAliasDeclaration;
-    }
-  >;
-} => {
-  const functions = new Map<
-    string,
-    { document: Array<ts.SymbolDisplayPart>; declaration: ts.Declaration }
-  >();
-  const typeDefinitions = new Map<
-    string,
-    {
-      document: Array<ts.SymbolDisplayPart>;
-      declaration: ts.TypeAliasDeclaration;
-    }
-  >();
+): ServerCodeWithTsType => {
+  const functions: FunctionMapWithTsType = new Map();
+  const typeDefinitions: TypeHeader = new Map();
   for (const [key, symbol] of symbolArray) {
     switch (symbol.flags) {
-      case ts.SymbolFlags.BlockScopedVariable:
+      case ts.SymbolFlags.BlockScopedVariable: {
+        const type = typeChecker.getTypeOfSymbolAtLocation(
+          symbol,
+          symbol.valueDeclaration
+        );
+        if (type.flags !== ts.TypeFlags.Object) {
+          throw new Error("公開している変数の型が関数でなかった");
+        }
+        const callSignatures = type.getCallSignatures();
+        if (callSignatures.length !== 1) {
+          throw new Error("関数呼び出しの形式は1つでなければなりません");
+        }
+        const callSignature = callSignatures[0];
         functions.set(key.toString(), {
           document: symbol.getDocumentationComment(typeChecker),
-          declaration: symbol.valueDeclaration
+          arguments: new Map(
+            callSignature
+              .getParameters()
+              .map(symbolToNameAndTsType(typeChecker))
+              .map(({ name, tsType }) => [name, tsType])
+          ),
+          return: callSignature.getReturnType()
         });
         break;
+      }
       case ts.SymbolFlags.TypeAlias: {
         const declaration: ts.Declaration | undefined = symbol.declarations[0];
         if (declaration === undefined) {
@@ -309,8 +287,8 @@ const symbolArrayToFunctionsAndTypesBeforeReadDeclaration = (
     }
   }
   return {
-    functions: functions,
-    typeDefinitions: typeDefinitions
+    functionMap: functions,
+    typeHeader: typeDefinitions
   };
 };
 
@@ -353,26 +331,45 @@ const serverCodeFromFile = (
     typeChecker
   );
   const types: Map<string, TypeWithDocument> = new Map();
-  for (const [
-    key,
-    type
-  ] of functionsAndTypesBeforeReadDeclaration.typeDefinitions) {
-    type.declaration.forEachChild(child => {
-      if (ts.isTypeNode(child)) {
-        types.set(key, {
-          document: type.document,
-          typeBody: nodeToType(
-            typeChecker,
-            functionsAndTypesBeforeReadDeclaration.typeDefinitions
-          )(child)
-        });
-      }
+  for (const [key, type] of functionsAndTypesBeforeReadDeclaration.typeHeader) {
+    types.set(key, {
+      document: type.document,
+      typeBody: nodeToType(
+        typeChecker,
+        functionsAndTypesBeforeReadDeclaration.typeHeader
+      )(typeAliasDeclarationGetType(type.declaration))
     });
   }
+  const functionMap: Map<string, Function> = new Map();
+  for (const [
+    key,
+    func
+  ] of functionsAndTypesBeforeReadDeclaration.functionMap) {
+    functionMap.set(key, {
+      document: func.document,
+      arguments: new Map(
+        [...func.arguments].map(([name, type]) => [
+          name,
+          tsTypeToType(
+            typeChecker,
+            functionsAndTypesBeforeReadDeclaration.typeHeader
+          )(type)
+        ])
+      ),
+      return: tsTypeToType(
+        typeChecker,
+        functionsAndTypesBeforeReadDeclaration.typeHeader
+      )(func.return)
+    });
+  }
+  return {
+    functions: functionMap,
+    typeDefinitions: types
+  };
 };
 
 console.log(
-  serverCodeFromFile("sample.ts", {
+  serverCodeFromFile("./sample/sample.ts", {
     target: ts.ScriptTarget.ES2019,
     strict: true
   })

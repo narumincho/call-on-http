@@ -1,14 +1,9 @@
-/** 説明 */
-export const constantValue: string = "stringValue";
-
 /** ユーザー */
 export type User = {
   /** 名前 */
   name: string;
   /** 年齢 */
   age: number;
-  /** 作成日時 */
-  createdAt: Date;
 };
 
 export type UseRef = User;
@@ -22,16 +17,14 @@ export type UnionSample = string | number | { obj: string };
 export const getUser = async (id: string): Promise<User> => {
   return {
     name: "Kish.",
-    age: 21,
-    createdAt: new Date()
+    age: 21
   };
 };
 
 export const getUserNoPromise = (id: string): User => {
   return {
     name: "Kish.",
-    age: 21,
-    createdAt: new Date()
+    age: 21
   };
 };
 
