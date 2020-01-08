@@ -6,20 +6,20 @@ export type ServerCode = {
 };
 
 export type FunctionData = {
-  document: ReadonlyArray<tsm.JSDoc>;
+  document: Array<string>;
   parameters: ReadonlyArray<[string, Type]>;
   return: Type;
 };
 
 export type TypeData = {
-  document: Array<tsm.JSDoc>;
-  typeBody: Type;
+  document: Array<string>;
+  typeData: Type;
 };
 
 export type Type =
   | {
       type: "object";
-      members: Map<string, TypeData>;
+      members: ReadonlyArray<[string, TypeData]>;
     }
   | { type: "referenceInServerCode"; name: string }
   | { type: "primitive"; primitive: PrimitiveType }
@@ -30,5 +30,4 @@ export type PrimitiveType =
   | "number"
   | "boolean"
   | "undefined"
-  | "null"
-  | "never";
+  | "null";

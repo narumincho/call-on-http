@@ -13,14 +13,11 @@ export const generateMiddlewareCode = (
   compilerOptions: ts.CompilerOptions & { strict: true },
   outFilePath: string
 ): void => {
-  analysisCode.serverCodeFromFile(tsConfigFilePath, compilerOptions);
-
-  // const serverCode = analysisCode.serverCodeFromFile(
-  //   tsConfigFilePath,
-  //   compilerOptions
-  // );
-
-  // emitter.emit(serverCode, outFilePath);
+  const serverCode = analysisCode.serverCodeFromFile(
+    tsConfigFilePath,
+    compilerOptions
+  );
+  emitter.emit(serverCode, outFilePath);
 };
 
 generateMiddlewareCode(
