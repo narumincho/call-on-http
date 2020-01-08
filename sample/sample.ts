@@ -14,25 +14,25 @@ export type UnionSample = string | number | { obj: string };
  * IDからユーザーの情報を取得する
  * @param id パラメータに対するコメント
  */
-export const getUser = async (id: string): Promise<User> => {
+export async function getUser(id: string): Promise<User> {
   return {
     name: "Kish.",
     age: 21
   };
-};
+}
 
-export const getUserNoPromise = (id: string): User => {
+export function getUserNoPromise(id: string): User {
   return {
     name: "Kish.",
     age: 21
   };
-};
+}
 
-export const functionWithOutReturnType = (id: string) => {
+export function functionWithOutReturnType(id: string) {
   return {
     data: 32
   };
-};
+}
 
 export function functionStyleFunction(params: string): string {
   return "ok";

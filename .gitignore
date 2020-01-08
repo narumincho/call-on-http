@@ -1,3 +1,6 @@
 node_modules
 distribution
 .vscode
+out.ts
+out.js
+use.js

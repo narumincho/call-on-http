@@ -43,6 +43,11 @@ export const emit = (
   });
 
   const sourceFile = project.createSourceFile(outFileName);
+  sourceFile.addImportDeclaration({
+    moduleSpecifier: "express",
+    namespaceImport: "express"
+  });
+
   console.log(serverCode);
   for (const [name, typeData] of serverCode.typeDefinitions) {
     console.log(typeData.document);
@@ -53,19 +58,28 @@ export const emit = (
       isExported: true
     });
   }
-  for (const [name, functionData] of serverCode.functions) {
-    sourceFile.addVariableStatement({
-      kind: tsm.StructureKind.VariableStatement,
-      declarations: [
-        {
-          name: name,
-          initializer: "関数の中身",
-          kind: tsm.StructureKind.VariableDeclaration
-        }
-      ],
-      isExported: true,
-      docs: functionData.document
-    });
-  }
+  const middlewareFunctionDeclaration = sourceFile.addFunction({
+    name: "middleware",
+    returnType: "void",
+    isExported: true,
+    parameters: [
+      { name: "request", type: "express.Request" },
+      { name: "response", type: "express.Response" }
+    ]
+  });
+  middlewareFunctionDeclaration.addVariableStatement({
+    declarationKind: tsm.VariableDeclarationKind.Const,
+    declarations: [{ name: "body", initializer: "request.body" }]
+  });
+  middlewareFunctionDeclaration.addStatements(
+    `response.send(\`call on http ${JSON.stringify(
+      [...serverCode.functions.entries()].map(([name, func]) => ({
+        name: name,
+        parameters: func.parameters,
+        return: func.return
+      }))
+    )}\`);`
+  );
+
   project.saveSync();
 };
