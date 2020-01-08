@@ -8,7 +8,7 @@ const typeToString = (type: type.Type): string => {
         "{" +
         type.members
           .map(
-            ([name, typeData]) => name + ":" + typeToString(typeData.typeData)
+            ([name, typeData]) => name + ": " + typeToString(typeData.typeData)
           )
           .join(",") +
         "}"
@@ -18,8 +18,14 @@ const typeToString = (type: type.Type): string => {
       switch (type.primitive) {
         case "string":
           return "string";
+        case "number":
+          return "number";
         case "boolean":
           return "boolean";
+        case "undefined":
+          return "undefined";
+        case "null":
+          return "null";
       }
     }
   }
