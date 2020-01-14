@@ -26,6 +26,6 @@ generateMiddlewareCode(
     target: ts.ScriptTarget.ES2020,
     strict: true
   },
-  "./out.ts"
+  "./sample/out.ts"
 );
 console.log("ok");

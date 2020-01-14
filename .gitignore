@@ -1,5 +1,6 @@
 node_modules
 distribution
+sampleDistribution
 .vscode
 out.ts
 out.js
