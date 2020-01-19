@@ -1,5 +1,7 @@
 import * as type from "./type";
 import * as tsm from "ts-morph";
+import * as generator from "jstscodegenerator";
+import * as fs from "fs";
 
 const typeToString = (type: type.Type): string => {
   switch (type.type) {
@@ -35,51 +37,43 @@ const typeToString = (type: type.Type): string => {
 export const emit = (
   serverCode: type.ServerCode,
   outFileName: string
-): void => {
-  const project = new tsm.Project({
-    compilerOptions: {
-      strict: true
-    }
-  });
-
-  const sourceFile = project.createSourceFile(outFileName);
-  sourceFile.addImportDeclaration({
-    moduleSpecifier: "express",
-    namespaceImport: "express"
-  });
-
-  console.log(serverCode);
-  for (const [name, typeData] of serverCode.typeDefinitions) {
-    console.log(typeData.document);
-    sourceFile.addTypeAlias({
-      type: typeToString(typeData.typeData),
-      name: name,
-      docs: typeData.document,
-      isExported: true
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const expressModule = generator.createImportNodeModule<
+      ["Request", "Response"],
+      []
+    >("express", ["Request", "Response"], []);
+    const project = new tsm.Project({
+      compilerOptions: {
+        strict: true
+      }
     });
-  }
-  const middlewareFunctionDeclaration = sourceFile.addFunction({
-    name: "middleware",
-    returnType: "void",
-    isExported: true,
-    parameters: [
-      { name: "request", type: "express.Request" },
-      { name: "response", type: "express.Response" }
-    ]
+    fs.writeFile(
+      outFileName,
+      generator.toNodeJsCodeAsTypeScript({
+        exportTypeAliasList: [],
+        exportVariableList: [
+          {
+            name: "middleware",
+            typeExpr: generator.typeExpr.functionReturnVoid([
+              {
+                name: "request",
+                document: "リクエスト",
+                typeExpr: expressModule.typeList.Request
+              },
+              {
+                name: "response",
+                document: "レスポンス",
+                typeExpr: expressModule.typeList.Response
+              }
+            ]),
+            document: "ミドルウェア",
+            expr: generator.stringLiteral("まだ途中")
+          }
+        ]
+      }),
+      () => {
+        resolve();
+      }
+    );
   });
-  middlewareFunctionDeclaration.addVariableStatement({
-    declarationKind: tsm.VariableDeclarationKind.Const,
-    declarations: [{ name: "body", initializer: "request.body" }]
-  });
-  middlewareFunctionDeclaration.addStatements(
-    `response.send(\`call on http ${JSON.stringify(
-      [...serverCode.functions.entries()].map(([name, func]) => ({
-        name: name,
-        parameters: func.parameters,
-        return: func.return
-      }))
-    )}\`);`
-  );
-
-  project.saveSync();
-};
