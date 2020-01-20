@@ -12,7 +12,3 @@ app.use(path, out.middleware);
 app.listen(portNumber, () => {
   console.log("listen http://localhost:" + portNumber.toString());
 });
-
-const func = (request: express.Request, response: express.Response) => {
-  request.headers.accept;
-};
