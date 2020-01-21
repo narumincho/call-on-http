@@ -6,7 +6,10 @@ import * as api from "api";
  * @param response レスポンス
  * @param request リクエスト
  */
-const middleware = (request: express.Request, response: express.Response) => {
+const middleware = (
+  request: express.Request,
+  response: express.Response
+): void => {
   const accept = request.headers.accept;
   if (accept !== undefined && accept.includes("text/html")) {
     response.setHeader("content-type", "text/html");
