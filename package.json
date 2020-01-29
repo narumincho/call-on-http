@@ -1,7 +1,7 @@
 {
   "name": "call-on-http",
   "version": "0.0.0",
-  "description": "",
+  "description": "Remote Procedure Call on HTTP for TypeScript",
   "main": "distribution/index.js",
   "repository": {
     "type": "git",
@@ -19,17 +19,17 @@
   "homepage": "https://github.com/narumincho/call-on-http#readme",
   "dependencies": {
     "express": "^4.17.1",
-    "js-ts-code-generator": "0.0.5",
+    "js-ts-code-generator": "0.0.6",
     "ts-morph": "^6.0.2",
     "typescript": "^3.7.5"
   },
   "devDependencies": {
     "@types/express": "^4.17.2",
-    "@types/node": "^13.5.0",
+    "@types/node": "^13.5.1",
     "@typescript-eslint/eslint-plugin": "^2.18.0",
     "@typescript-eslint/parser": "^2.18.0",
     "eslint": "^6.8.0",
-    "eslint-config-prettier": "^6.9.0",
+    "eslint-config-prettier": "^6.10.0",
     "eslint-plugin-prettier": "^3.1.2",
     "prettier": "^1.19.1"
   }

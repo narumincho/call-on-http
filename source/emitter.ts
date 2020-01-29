@@ -12,60 +12,61 @@ export const emit = (
       ["Request", "Response"],
       []
     >("express", ["Request", "Response"], []);
-    const nodeJsCode: generator.NodeJsCode = {
-      exportTypeAliasList: [],
-      exportFunctionList: [
+
+    const middleware = generator.exportFunction({
+      name: "middleware",
+      parameterList: [
         {
-          name: "middleware",
-          parameterList: [
-            {
-              name: "request",
-              document: "リクエスト",
-              typeExpr: expressModule.typeList.Request
-            },
-            {
-              name: "response",
-              document: "レスポンス",
-              typeExpr: expressModule.typeList.Response
-            }
-          ],
-          returnType: null,
-          statementList: [
-            expr.variableDefinition(
-              typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
-              expr.get(expr.get(expr.argument(0, 0), "headers"), "accept")
-            ),
-            expr.ifStatement(
-              expr.logicalAnd(
-                expr.notEqual(expr.localVariable(0, 0), expr.undefinedLiteral),
-                expr.callMethod(expr.localVariable(0, 0), "includes", [
-                  expr.literal("text/html")
-                ])
-              ),
-              [
-                expr.evaluateExpr(
-                  expr.callMethod(expr.argument(1, 1), "setHeader", [
-                    expr.literal("content-type"),
-                    expr.literal("text/html")
-                  ])
-                ),
-                expr.evaluateExpr(
-                  expr.callMethod(expr.argument(1, 1), "send", [
-                    expr.literal("htmlをリクエストした")
-                  ])
-                ),
-                expr.returnVoidStatement
-              ]
+          name: "request",
+          document: "リクエスト",
+          typeExpr: expressModule.typeList.Request
+        },
+        {
+          name: "response",
+          document: "レスポンス",
+          typeExpr: expressModule.typeList.Response
+        }
+      ],
+      returnType: null,
+      statementList: [
+        expr.variableDefinition(
+          typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
+          expr.get(expr.get(expr.argument(0, 0), "headers"), "accept")
+        ),
+        expr.ifStatement(
+          expr.logicalAnd(
+            expr.notEqual(expr.localVariable(0, 0), expr.undefinedLiteral),
+            expr.callMethod(expr.localVariable(0, 0), "includes", [
+              expr.literal("text/html")
+            ])
+          ),
+          [
+            expr.evaluateExpr(
+              expr.callMethod(expr.argument(1, 1), "setHeader", [
+                expr.literal("content-type"),
+                expr.literal("text/html")
+              ])
             ),
             expr.evaluateExpr(
-              expr.callMethod(expr.argument(0, 1), "send", [
-                expr.literal("APIのレスポンス")
+              expr.callMethod(expr.argument(1, 1), "send", [
+                expr.literal("htmlをリクエストした")
               ])
-            )
-          ],
-          document: "ミドルウェア"
-        }
-      ]
+            ),
+            expr.returnVoidStatement
+          ]
+        ),
+        expr.evaluateExpr(
+          expr.callMethod(expr.argument(0, 1), "send", [
+            expr.literal("APIのレスポンス")
+          ])
+        )
+      ],
+      document: "ミドルウェア"
+    });
+
+    const nodeJsCode: generator.NodeJsCode = {
+      exportTypeAliasList: [],
+      exportFunctionList: [middleware]
     };
     fs.writeFile(
       outFileName,
