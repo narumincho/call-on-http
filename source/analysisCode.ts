@@ -6,6 +6,7 @@ import * as ts from "typescript";
 const tsTypeToType = (typeDictionary: TypeDictionary) => (
   tsType: ts.Type
 ): type.Type => {
+  console.log(tsType.flags);
   if (tsType.flags === ts.TypeFlags.StringLike) {
     return { _: type.Type_.String };
   }

@@ -10,6 +10,8 @@ export type UseRef = User;
 
 export type UnionSample = string | number | { obj: string };
 
+export type NumberType = number;
+
 /**
  * IDからユーザーの情報を取得する
  * @param id パラメータに対するコメント

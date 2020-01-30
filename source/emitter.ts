@@ -2,12 +2,15 @@ import * as type from "./type";
 import * as generator from "js-ts-code-generator";
 import * as fs from "fs";
 import { expr, typeExpr } from "js-ts-code-generator";
+import * as util from "util";
 
 export const emit = (
   serverCode: type.ServerCode,
   outFileName: string
 ): Promise<void> =>
   new Promise((resolve, reject) => {
+    console.log(util.inspect(serverCode, false, null));
+
     const html = createHtmlFromServerCode(serverCode);
 
     const expressModule = generator.createImportNodeModule<
@@ -77,23 +80,6 @@ export const emit = (
     );
   });
 
-const escapeHtml = (text: string): string =>
-  text.replace(/[&'`"<>]/g, (s: string): string =>
-    s === "&"
-      ? "&amp;"
-      : s === "'"
-      ? "&#x27;"
-      : s === "`"
-      ? "&#x60;"
-      : s === '"'
-      ? "&quot;"
-      : s === "<"
-      ? "&lt;"
-      : s === ">"
-      ? "&gt;"
-      : ""
-  );
-
 const createHtmlFromServerCode = (serverCode: type.ServerCode): string => {
   return `<!doctype html>
 <html lang="ja">
@@ -134,14 +120,14 @@ const createHtmlFromServerCode = (serverCode: type.ServerCode): string => {
 </head>
 
 <body>
-  <h1>${escapeHtml(serverCode.apiName)} API Document</h1>
+  ${htmlElementToString(h1(serverCode.apiName + "API Document"))}
   <section>
     <h2>Function</h2>
-    ${functionMapToHtml(serverCode.functionMap)}
+    ${htmlElementToString(functionMapToHtml(serverCode.functionMap))}
   </section>
   <section>
     <h2>Type</h2>
-    ${typeMapToHtml(serverCode.typeMap)}
+    ${htmlElementToString(typeMapToHtml(serverCode.typeMap))}
   </section>
 </body>
 
@@ -151,75 +137,118 @@ const createHtmlFromServerCode = (serverCode: type.ServerCode): string => {
 
 const functionMapToHtml = (
   functionMap: Map<string, type.FunctionData>
-): string =>
-  "<div>" +
-  [...functionMap.entries()]
-    .map(
-      ([name, data]) => `<div>
-  <h3>${escapeHtml(name)}<h3>
-  <div>${escapeHtml(data.document)}</div>
-  <div>
-    <div>parameter</div>
-    ${parameterListToHtml(data.parameters)}
-  </div>
-  <div>
-    <div>return type</div>
-    ${typeToHtml(data.return)}
-  </div>
-</div>`
+): HtmlElement =>
+  div(
+    [...functionMap.entries()].map(
+      ([name, data]): HtmlElement =>
+        div([
+          h3(name),
+          div(data.document),
+          div([div("parameter list"), parameterListToHtml(data.parameters)]),
+          div([div("return type"), typeToHtml(data.return)])
+        ])
     )
-    .join("") +
-  "</div>";
+  );
 
 const parameterListToHtml = (
   parameterList: ReadonlyArray<[string, type.Type]>
-): string => `<div>
-${parameterList.map(
-  ([parameterName, parameterType]) =>
-    `<div>
-      <div>${escapeHtml(parameterName)}</div>
-      <div>${typeToHtml(parameterType)}</div>
-    </div>`
-)}
-</div>`;
+): HtmlElement =>
+  div(
+    parameterList.map(
+      ([parameterName, parameterType]): HtmlElement =>
+        div([div(parameterName), typeToHtml(parameterType)])
+    )
+  );
 
-const typeToHtml = (type_: type.Type): string => {
+const typeToHtml = (type_: type.Type): HtmlElement => {
   switch (type_._) {
     case type.Type_.Number:
-      return "<div>number</div>";
+      return div("number");
     case type.Type_.String:
-      return "<div>string</div>";
+      return div("string");
     case type.Type_.Boolean:
-      return "<div>boolean</div>";
+      return div("boolean");
     case type.Type_.Null:
-      return "<div>null</div>";
+      return div("null");
     case type.Type_.Undefined:
-      return "<div>undefined</div>";
+      return div("undefined");
     case type.Type_.Object:
-      return `<div>${type_.members.map(
-        ([propertyName, propertyType]) =>
-          `<div>
-            <div>${escapeHtml(propertyName)}</div>
-            <div>${escapeHtml(propertyType.document)}</div>
-            <div>${typeToHtml(propertyType.type_)}</div>
-          </div>`
-      )}</div>`;
+      return div(
+        type_.members.map(
+          ([propertyName, propertyType]): HtmlElement =>
+            div([
+              div(propertyName),
+              div(propertyType.document),
+              typeToHtml(propertyType.type_)
+            ])
+        )
+      );
     case type.Type_.Reference:
-      return `<div>ref(${type_.name})</div>`;
+      return div(`ref(${type_.name})`);
     case type.Type_.Union:
-      return `<div>${type_.typeList.map(typeToHtml).join("")}</div>`;
+      return div(type_.typeList.map(typeToHtml));
   }
 };
 
-const typeMapToHtml = (typeMap: ReadonlyMap<string, type.TypeData>): string =>
-  "<div>" +
-  [...typeMap.entries()]
-    .map(
-      ([typeName, typeData]) => `<div>
-<h3>${escapeHtml(typeName)}</h3>
-<div>${escapeHtml(typeData.document)}<div>
-${typeToHtml(typeData.type_)}
-</div>`
+const typeMapToHtml = (
+  typeMap: ReadonlyMap<string, type.TypeData>
+): HtmlElement =>
+  div(
+    [...typeMap.entries()].map(
+      ([typeName, typeData]): HtmlElement =>
+        div([h3(typeName), div(typeData.document), typeToHtml(typeData.type_)])
     )
-    .join("") +
-  "</div>";
+  );
+
+type HtmlElement = {
+  name: string;
+  children: ReadonlyArray<HtmlElement> | string;
+};
+
+const div = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
+  name: "div",
+  children
+});
+
+const h1 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
+  name: "div",
+  children
+});
+
+const h2 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
+  name: "div",
+  children
+});
+
+const h3 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
+  name: "div",
+  children
+});
+
+const escapeHtml = (text: string): string =>
+  text.replace(/[&'`"<>]/gu, (s: string): string =>
+    s === "&"
+      ? "&amp;"
+      : s === "'"
+      ? "&#x27;"
+      : s === "`"
+      ? "&#x60;"
+      : s === '"'
+      ? "&quot;"
+      : s === "<"
+      ? "&lt;"
+      : s === ">"
+      ? "&gt;"
+      : ""
+  );
+
+const htmlElementToString = (htmlElement: HtmlElement): string =>
+  "<" +
+  htmlElement.name +
+  ">" +
+  (typeof htmlElement.children === "string"
+    ? escapeHtml(htmlElement.children)
+    : htmlElement.children.map(htmlElementToString).join("")) +
+  "</" +
+  htmlElement.name +
+  ">";
