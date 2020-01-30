@@ -51,7 +51,7 @@ const tsTypeToServerCodeType = (
       ])
     };
   }
-  return { _: type.Type_.Null };
+  throw new Error("サポートされていない型の形式を受け取った");
 };
 
 const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): Array<T> => {
