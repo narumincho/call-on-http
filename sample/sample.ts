@@ -6,9 +6,7 @@ export type User = {
   age: number;
 };
 
-export type UseRef = User;
-
-export type UnionSample = string | number | { obj: string };
+export type Music = { name: string; artist: User };
 
 export type NumberType = number;
 
