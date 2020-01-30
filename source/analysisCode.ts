@@ -4,10 +4,10 @@ import * as ts from "typescript";
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
 const tsTypeToServerCodeType = (
+  tsType: ts.Type,
   typeChecker: ts.TypeChecker,
   typeDictionary: TypeDictionary
-) => (tsType: ts.Type): type.Type => {
-  console.log(tsType.flags);
+): type.Type => {
   if (tsType.flags === ts.TypeFlags.String) {
     return { _: type.Type_.String };
   }
@@ -39,13 +39,12 @@ const tsTypeToServerCodeType = (
             symbol.getDocumentationComment(typeChecker)
           ),
           type_: tsTypeToServerCodeType(
-            typeChecker,
-            typeDictionary
-          )(
             typeChecker.getTypeOfSymbolAtLocation(
               symbol,
               symbol.valueDeclaration
-            )
+            ),
+            typeChecker,
+            typeDictionary
           )
         }
       ])
@@ -64,6 +63,12 @@ const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): Array<T> => {
     array.push(result.value);
   }
 };
+
+const symbolToType = (
+  symbol: ts.Symbol,
+  typeChecker: ts.TypeChecker
+): ts.Type =>
+  typeChecker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration);
 
 /**
  * ファイルからサーバーのコードを解析してコード生成に必要な情報を収集する
@@ -119,25 +124,45 @@ export const serverCodeFromFile = (
           value.getDocumentationComment(typeChecker)
         ),
         type_: tsTypeToServerCodeType(
+          typeChecker.getTypeFromTypeNode(declarationType),
           typeChecker,
           typeDictionary
-        )(typeChecker.getTypeFromTypeNode(declarationType))
+        )
       });
       continue;
     }
-    if (value.flags === ts.SymbolFlags.Variable) {
-      // functionMap.set(value.getName(), {
-      //   document: ts.displayPartsToString(
-      //     value.getDocumentationComment(typeChecker)
-      //   ),
-      //   parameters: value.valueDeclaration.get
-      //     .getParameters()
-      //     .map(parameter => [
-      //       parameter.getName(),
-      //       tsmTypeToType(typeDictionary)(parameter.getType())
-      //     ]),
-      //   return: tsmTypeToType(typeDictionary)(func.getReturnType())
-      // });
+    if (
+      value.flags === ts.SymbolFlags.BlockScopedVariable ||
+      value.flags === ts.SymbolFlags.Function
+    ) {
+      const callSignatures = symbolToType(
+        value,
+        typeChecker
+      ).getCallSignatures();
+      if (callSignatures.length !== 1) {
+        throw new Error("変数の型が関数でなかった");
+      }
+      const callSignature = callSignatures[0];
+      functionMap.set(value.getName(), {
+        document: ts.displayPartsToString(
+          value.getDocumentationComment(typeChecker)
+        ),
+        parameters: callSignature
+          .getParameters()
+          .map(parameter => [
+            parameter.getName(),
+            tsTypeToServerCodeType(
+              symbolToType(parameter, typeChecker),
+              typeChecker,
+              typeDictionary
+            )
+          ]),
+        return: tsTypeToServerCodeType(
+          callSignature.getReturnType(),
+          typeChecker,
+          typeDictionary
+        )
+      });
     }
   }
 
@@ -146,33 +171,6 @@ export const serverCodeFromFile = (
     typeMap: typeMap,
     functionMap: functionMap
   };
-
-  // for (const variableDeclaration of variableDeclarationList) {
-  //   if (!variableDeclaration.isExported()) {
-  //     continue;
-  //   }
-  //   const callSignatures = variableDeclaration.getType().getCallSignatures();
-  //   if (callSignatures.length !== 1) {
-  //     throw new Error("変数の型が関数でなかった");
-  //   }
-  //   const callSignature = callSignatures[0];
-  //   console.log(variableDeclaration.getName(), callSignature);
-  //   functionMap.set(variableDeclaration.getName(), {
-  //     document: [callSignature.getDocumentationComments().toString()],
-  //     parameters: callSignature
-  //       .getParameters()
-  //       .map(parameter => [
-  //         parameter.getName(),
-  //         tsmTypeToType(typeDictionary)(
-  //           parameter.getTypeAtLocation(
-  //             parameter.getValueDeclarationOrThrow()
-  //           )
-  //         )
-  //       ]),
-  //     return: tsmTypeToType(typeDictionary)(callSignature.getReturnType())
-  //   });
-  // }
-  // }
 };
 
 type TypeDictionary = ReadonlyMap<string, ts.Symbol>;
