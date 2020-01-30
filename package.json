@@ -19,7 +19,7 @@
   "homepage": "https://github.com/narumincho/call-on-http#readme",
   "dependencies": {
     "express": "^4.17.1",
-    "js-ts-code-generator": "0.0.7",
+    "js-ts-code-generator": "0.0.8",
     "typescript": "^3.7.5"
   },
   "devDependencies": {

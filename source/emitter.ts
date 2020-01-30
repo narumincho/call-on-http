@@ -87,7 +87,7 @@ const createHtmlFromServerCode = (serverCode: type.ServerCode): string => {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>${escapeHtml(serverCode.apiName)} : API Document</title>
+    <title>${escapeTextNodeInHtml(serverCode.apiName)} : API Document</title>
     <style>
       body {
         margin: 0;
@@ -225,29 +225,21 @@ const h3 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
   children
 });
 
-const escapeHtml = (text: string): string =>
-  text.replace(/[&'`"<>]/gu, (s: string): string =>
-    s === "&"
-      ? "&amp;"
-      : s === "'"
-      ? "&#x27;"
-      : s === "`"
-      ? "&#x60;"
-      : s === '"'
-      ? "&quot;"
-      : s === "<"
-      ? "&lt;"
-      : s === ">"
-      ? "&gt;"
-      : ""
-  );
+const escapeTextNodeInHtml = (text: string): string =>
+  text
+    .replace(/&/g, "&amp;")
+    .replace(/>/g, "&gt;")
+    .replace(/</g, "&lt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;")
+    .replace(/`/g, "&#x60;");
 
 const htmlElementToString = (htmlElement: HtmlElement): string =>
   "<" +
   htmlElement.name +
   ">" +
   (typeof htmlElement.children === "string"
-    ? escapeHtml(htmlElement.children)
+    ? escapeTextNodeInHtml(htmlElement.children)
     : htmlElement.children.map(htmlElementToString).join("")) +
   "</" +
   htmlElement.name +
