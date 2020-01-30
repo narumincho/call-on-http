@@ -9,19 +9,22 @@ import * as emitter from "./emitter";
  * @param outFilePath
  */
 export const generateMiddlewareCode = (
-  tsConfigFilePath: string,
+  apiName: string,
+  fileName: string,
   compilerOptions: ts.CompilerOptions & { strict: true },
   outFilePath: string
 ): void => {
   const serverCode = analysisCode.serverCodeFromFile(
-    tsConfigFilePath,
+    apiName,
+    fileName,
     compilerOptions
   );
   emitter.emit(serverCode, outFilePath);
 };
 
 generateMiddlewareCode(
-  "./sample/tsconfig.json",
+  "sample",
+  "./sample/sample.ts",
   {
     target: ts.ScriptTarget.ES2020,
     strict: true

@@ -1,41 +1,53 @@
 import * as type from "./type";
-import * as tsm from "ts-morph";
+import * as ts from "typescript";
 
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
-const tsmTypeToType = (
-  typeDictionary: Map<string, tsm.TypeAliasDeclaration>
-) => (tsmType: tsm.Type): type.Type => {
-  if (tsmType.isString()) {
-    return { type: "primitive", primitive: "string" };
+const tsTypeToType = (typeDictionary: TypeDictionary) => (
+  tsType: ts.Type
+): type.Type => {
+  if (tsType.flags === ts.TypeFlags.StringLike) {
+    return { _: type.Type_.String };
   }
-  if (tsmType.isNumber()) {
-    return { type: "primitive", primitive: "number" };
+  if (tsType.flags === ts.TypeFlags.NumberLike) {
+    return { _: type.Type_.Number };
   }
-  if (tsmType.isBoolean()) {
-    return { type: "primitive", primitive: "boolean" };
+  if (tsType.flags === ts.TypeFlags.BooleanLike) {
+    return { _: type.Type_.Boolean };
   }
-  if (tsmType.isUndefined()) {
-    return { type: "primitive", primitive: "undefined" };
+  if (tsType.flags === ts.TypeFlags.Undefined) {
+    return { _: type.Type_.Undefined };
   }
-  if (tsmType.isNull()) {
-    return { type: "primitive", primitive: "null" };
+  if (tsType.flags === ts.TypeFlags.Null) {
+    return { _: type.Type_.Null };
   }
-  if (tsmType.isObject()) {
-    return {
-      type: "object",
-      members: tsmType.getProperties().map(symbol => [
-        symbol.getName(),
-        {
-          document: ["プロパティのドキュメント"],
-          typeData: tsmTypeToType(typeDictionary)(
-            symbol.getTypeAtLocation(symbol.getValueDeclarationOrThrow())
-          )
-        }
-      ])
-    };
+  // if (tsType.flags === ts.TypeFlags.Object) {
+  //   return {
+  //     type: "object",
+  //     members: tsType.getProperties().map(symbol => [
+  //       symbol.getName(),
+  //       {
+  //         document: ["ドキュメント"],
+  //         typeData: tsmTypeToType(typeDictionary)(
+  //           symbol.valueDeclaration
+  //           symbol.getTypeAtLocation(symbol.getValueDeclarationOrThrow())
+  //         )
+  //       }
+  //     ])
+  //   };
+  // }
+  return { _: type.Type_.Null };
+};
+
+const tsIteratorToArray = <T>(tsIterator: ts.Iterator<T>): Array<T> => {
+  const array: Array<T> = [];
+  while (true) {
+    const result = tsIterator.next();
+    if (result.done === true) {
+      return array;
+    }
+    array.push(result.value);
   }
-  return { type: "primitive", primitive: "null" };
 };
 
 /**
@@ -44,84 +56,120 @@ const tsmTypeToType = (
  * @param compilerOptions コンパイルオプション strict: trueでないといけない
  */
 export const serverCodeFromFile = (
-  tsConfigFilePath: string,
-  compilerOptions: tsm.CompilerOptions & { strict: true }
+  apiName: string,
+  rootSourceFileName: string,
+  compilerOptions: ts.CompilerOptions & { strict: true }
 ): type.ServerCode => {
-  const project = new tsm.Project({
-    tsConfigFilePath: tsConfigFilePath,
-    compilerOptions: compilerOptions
+  const program = ts.createProgram({
+    rootNames: [rootSourceFileName],
+    options: compilerOptions
   });
+  const typeChecker = program.getTypeChecker();
 
-  const typeDictionary: Map<string, tsm.TypeAliasDeclaration> = new Map();
-  for (const sourceFile of project.getSourceFiles()) {
-    const typeAliases = sourceFile.getTypeAliases();
-    for (const typeAlias of typeAliases) {
-      if (typeAlias.isExported()) {
-        typeDictionary.set(
-          typeAlias.getSymbolOrThrow().getFullyQualifiedName(),
-          typeAlias
-        );
-      }
-    }
-  }
+  const typeDictionary = getTypeDictionary(program);
+
   const typeMap: Map<string, type.TypeData> = new Map();
   const functionMap: Map<string, type.FunctionData> = new Map();
-  for (const sourceFile of project.getSourceFiles()) {
-    if (sourceFile.isDeclarationFile()) {
+
+  const rootSourceFile = program.getSourceFile(rootSourceFileName);
+  if (rootSourceFile === undefined) {
+    throw new Error("サーバーのコードが読み取れなかった");
+  }
+  const symbol = ((rootSourceFile as unknown) as {
+    symbol: ts.Symbol | undefined;
+  }).symbol;
+  if (symbol === undefined) {
+    throw new Error("サーバーのコードにexportが使われていない");
+  }
+  // symbolからexportされているものを取得できる
+  const exportedSymbolMap = symbol.exports;
+  if (exportedSymbolMap === undefined) {
+    throw new Error("サーバーのコードのexportされているものを取得できなかった");
+  }
+  for (const [, value] of tsIteratorToArray(exportedSymbolMap.entries())) {
+    if (value.flags === ts.SymbolFlags.TypeAlias) {
+      typeMap.set(value.getName(), {
+        document: ts.displayPartsToString(
+          value.getDocumentationComment(typeChecker)
+        ),
+        type_: tsTypeToType(typeDictionary)(
+          typeChecker.getTypeOfSymbolAtLocation(value, value.valueDeclaration)
+        )
+      });
       continue;
     }
-    const functionList = sourceFile.getFunctions();
-    const variableDeclarationList = sourceFile.getVariableDeclarations();
-
-    for (const typeAliasDeclaration of typeDictionary.values()) {
-      typeMap.set(typeAliasDeclaration.getName(), {
-        document: typeAliasDeclaration.getJsDocs().map(d => d.getInnerText()),
-        typeData: tsmTypeToType(typeDictionary)(typeAliasDeclaration.getType())
-      });
+    if (value.flags === ts.SymbolFlags.Variable) {
+      // functionMap.set(value.getName(), {
+      //   document: ts.displayPartsToString(
+      //     value.getDocumentationComment(typeChecker)
+      //   ),
+      //   parameters: value.valueDeclaration.get
+      //     .getParameters()
+      //     .map(parameter => [
+      //       parameter.getName(),
+      //       tsmTypeToType(typeDictionary)(parameter.getType())
+      //     ]),
+      //   return: tsmTypeToType(typeDictionary)(func.getReturnType())
+      // });
     }
-    for (const func of functionList) {
-      if (!func.isExported()) {
-        continue;
-      }
-      functionMap.set(func.getNameOrThrow(), {
-        document: func.getJsDocs().map(d => d.getText()),
-        parameters: func
-          .getParameters()
-          .map(parameter => [
-            parameter.getName(),
-            tsmTypeToType(typeDictionary)(parameter.getType())
-          ]),
-        return: tsmTypeToType(typeDictionary)(func.getReturnType())
-      });
-    }
-    // for (const variableDeclaration of variableDeclarationList) {
-    //   if (!variableDeclaration.isExported()) {
-    //     continue;
-    //   }
-    //   const callSignatures = variableDeclaration.getType().getCallSignatures();
-    //   if (callSignatures.length !== 1) {
-    //     throw new Error("変数の型が関数でなかった");
-    //   }
-    //   const callSignature = callSignatures[0];
-    //   console.log(variableDeclaration.getName(), callSignature);
-    //   functionMap.set(variableDeclaration.getName(), {
-    //     document: [callSignature.getDocumentationComments().toString()],
-    //     parameters: callSignature
-    //       .getParameters()
-    //       .map(parameter => [
-    //         parameter.getName(),
-    //         tsmTypeToType(typeDictionary)(
-    //           parameter.getTypeAtLocation(
-    //             parameter.getValueDeclarationOrThrow()
-    //           )
-    //         )
-    //       ]),
-    //     return: tsmTypeToType(typeDictionary)(callSignature.getReturnType())
-    //   });
-    // }
   }
+
   return {
-    typeDefinitions: typeMap,
-    functions: functionMap
+    apiName,
+    typeMap: typeMap,
+    functionMap: functionMap
   };
+
+  // for (const variableDeclaration of variableDeclarationList) {
+  //   if (!variableDeclaration.isExported()) {
+  //     continue;
+  //   }
+  //   const callSignatures = variableDeclaration.getType().getCallSignatures();
+  //   if (callSignatures.length !== 1) {
+  //     throw new Error("変数の型が関数でなかった");
+  //   }
+  //   const callSignature = callSignatures[0];
+  //   console.log(variableDeclaration.getName(), callSignature);
+  //   functionMap.set(variableDeclaration.getName(), {
+  //     document: [callSignature.getDocumentationComments().toString()],
+  //     parameters: callSignature
+  //       .getParameters()
+  //       .map(parameter => [
+  //         parameter.getName(),
+  //         tsmTypeToType(typeDictionary)(
+  //           parameter.getTypeAtLocation(
+  //             parameter.getValueDeclarationOrThrow()
+  //           )
+  //         )
+  //       ]),
+  //     return: tsmTypeToType(typeDictionary)(callSignature.getReturnType())
+  //   });
+  // }
+  // }
+};
+
+type TypeDictionary = ReadonlyMap<string, ts.Symbol>;
+
+const getTypeDictionary = (program: ts.Program): TypeDictionary => {
+  const typeDictionary: Map<string, ts.Symbol> = new Map();
+  for (const sourceFile of program.getSourceFiles()) {
+    const symbol = ((sourceFile as unknown) as {
+      symbol: ts.Symbol | undefined;
+    }).symbol;
+    // export が書かれているソースファイルはsymbolとして認識される
+    if (symbol === undefined) {
+      continue;
+    }
+    // symbolからexportされているものを取得できる
+    const exportedSymbolMap = symbol.exports;
+    if (exportedSymbolMap === undefined) {
+      continue;
+    }
+    for (const [, value] of tsIteratorToArray(exportedSymbolMap.entries())) {
+      if (value.flags === ts.SymbolFlags.TypeAlias) {
+        typeDictionary.set(value.getName(), value);
+      }
+    }
+  }
+  return typeDictionary;
 };

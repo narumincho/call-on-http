@@ -1,33 +1,40 @@
-import * as tsm from "ts-morph";
-
 export type ServerCode = {
-  functions: Map<string, FunctionData>;
-  typeDefinitions: Map<string, TypeData>;
+  apiName: string;
+  functionMap: Map<string, FunctionData>;
+  typeMap: Map<string, TypeData>;
 };
 
 export type FunctionData = {
-  document: Array<string>;
+  document: string;
   parameters: ReadonlyArray<[string, Type]>;
   return: Type;
 };
 
 export type TypeData = {
-  document: Array<string>;
-  typeData: Type;
+  document: string;
+  type_: Type;
 };
 
 export type Type =
+  | { _: Type_.String }
+  | { _: Type_.Number }
+  | { _: Type_.Boolean }
+  | { _: Type_.Undefined }
+  | { _: Type_.Null }
   | {
-      type: "object";
-      members: ReadonlyArray<[string, TypeData]>;
+      _: Type_.Object;
+      members: ReadonlyArray<[string, { document: string; type_: Type }]>;
     }
-  | { type: "referenceInServerCode"; name: string }
-  | { type: "primitive"; primitive: PrimitiveType }
-  | { type: "union"; types: ReadonlyArray<Type> };
+  | { _: Type_.Reference; name: string }
+  | { _: Type_.Union; typeList: ReadonlyArray<Type> };
 
-export type PrimitiveType =
-  | "string"
-  | "number"
-  | "boolean"
-  | "undefined"
-  | "null";
+export const enum Type_ {
+  String,
+  Number,
+  Boolean,
+  Undefined,
+  Null,
+  Object,
+  Reference,
+  Union
+}
