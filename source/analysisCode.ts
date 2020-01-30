@@ -3,17 +3,18 @@ import * as ts from "typescript";
 
 // 参考: https://github.com/microsoft/TypeScript/wiki/Using-the-Compiler-API
 
-const tsTypeToType = (typeDictionary: TypeDictionary) => (
-  tsType: ts.Type
-): type.Type => {
+const tsTypeToServerCodeType = (
+  typeChecker: ts.TypeChecker,
+  typeDictionary: TypeDictionary
+) => (tsType: ts.Type): type.Type => {
   console.log(tsType.flags);
-  if (tsType.flags === ts.TypeFlags.StringLike) {
+  if (tsType.flags === ts.TypeFlags.String) {
     return { _: type.Type_.String };
   }
-  if (tsType.flags === ts.TypeFlags.NumberLike) {
+  if (tsType.flags === ts.TypeFlags.Number) {
     return { _: type.Type_.Number };
   }
-  if (tsType.flags === ts.TypeFlags.BooleanLike) {
+  if (tsType.flags === ts.TypeFlags.Boolean) {
     return { _: type.Type_.Boolean };
   }
   if (tsType.flags === ts.TypeFlags.Undefined) {
@@ -22,21 +23,34 @@ const tsTypeToType = (typeDictionary: TypeDictionary) => (
   if (tsType.flags === ts.TypeFlags.Null) {
     return { _: type.Type_.Null };
   }
-  // if (tsType.flags === ts.TypeFlags.Object) {
-  //   return {
-  //     type: "object",
-  //     members: tsType.getProperties().map(symbol => [
-  //       symbol.getName(),
-  //       {
-  //         document: ["ドキュメント"],
-  //         typeData: tsmTypeToType(typeDictionary)(
-  //           symbol.valueDeclaration
-  //           symbol.getTypeAtLocation(symbol.getValueDeclarationOrThrow())
-  //         )
-  //       }
-  //     ])
-  //   };
-  // }
+  if (tsType.flags === ts.TypeFlags.Object) {
+    return {
+      _: type.Type_.Object,
+      members: tsType.getProperties().map((symbol): [
+        string,
+        {
+          document: string;
+          type_: type.Type;
+        }
+      ] => [
+        symbol.getName(),
+        {
+          document: ts.displayPartsToString(
+            symbol.getDocumentationComment(typeChecker)
+          ),
+          type_: tsTypeToServerCodeType(
+            typeChecker,
+            typeDictionary
+          )(
+            typeChecker.getTypeOfSymbolAtLocation(
+              symbol,
+              symbol.valueDeclaration
+            )
+          )
+        }
+      ])
+    };
+  }
   return { _: type.Type_.Null };
 };
 
@@ -89,13 +103,25 @@ export const serverCodeFromFile = (
   }
   for (const [, value] of tsIteratorToArray(exportedSymbolMap.entries())) {
     if (value.flags === ts.SymbolFlags.TypeAlias) {
+      const declaration = value.declarations[0];
+      if (declaration === undefined) {
+        throw new Error("型の定義本体を見つけることができなかった");
+      }
+      const declarationType = ((declaration as unknown) as {
+        type: undefined | ts.TypeNode;
+      }).type;
+      if (declarationType === undefined) {
+        console.log("declarationTypeはundefinedだった");
+        continue;
+      }
       typeMap.set(value.getName(), {
         document: ts.displayPartsToString(
           value.getDocumentationComment(typeChecker)
         ),
-        type_: tsTypeToType(typeDictionary)(
-          typeChecker.getTypeOfSymbolAtLocation(value, value.valueDeclaration)
-        )
+        type_: tsTypeToServerCodeType(
+          typeChecker,
+          typeDictionary
+        )(typeChecker.getTypeFromTypeNode(declarationType))
       });
       continue;
     }
