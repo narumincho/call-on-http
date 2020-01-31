@@ -3,6 +3,7 @@ import * as generator from "js-ts-code-generator";
 import * as fs from "fs";
 import { expr, typeExpr } from "js-ts-code-generator";
 import * as util from "util";
+import * as h from "./htmlGenerator";
 
 export const emit = (
   serverCodeAnalysisResult: type.ServerCodeAnalysisResult,
@@ -95,7 +96,7 @@ const createHtmlFromServerCode = (
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>${escapeInHtml(
+    <title>${h.escapeInHtml(
       serverCodeAnalysisResult.apiName
     )} : API Document</title>
     <style>
@@ -127,19 +128,19 @@ const createHtmlFromServerCode = (
         background-color: rgba(100,255,2100, 0.1);
       }
     </style>
-    ${htmlElementToString(
-      scriptESModules(browserCode(serverCodeAnalysisResult))
+    ${h.htmlElementToString(
+      h.scriptESModules(browserCode(serverCodeAnalysisResult))
     )}
 </head>
 
-${htmlElementToString(
-  body([
-    h1(serverCodeAnalysisResult.apiName + "API Document"),
-    section([
-      h2("Function"),
+${h.htmlElementToString(
+  h.body([
+    h.h1(serverCodeAnalysisResult.apiName + "API Document"),
+    h.section([
+      h.h2("Function"),
       functionMapToHtml(serverCodeAnalysisResult.functionMap)
     ]),
-    section([h2("Type"), typeMapToHtml(serverCodeAnalysisResult.typeMap)])
+    h.section([h.h2("Type"), typeMapToHtml(serverCodeAnalysisResult.typeMap)])
   ])
 )}
 </html>
@@ -148,20 +149,20 @@ ${htmlElementToString(
 
 const functionMapToHtml = (
   functionMap: Map<string, type.FunctionData>
-): HtmlElement =>
-  div(
+): h.HtmlElement =>
+  h.div(
     null,
     [...functionMap.entries()].map(
-      ([name, data]): HtmlElement =>
-        div("function-" + name, [
-          h3(name),
-          div(null, data.document),
-          div(null, [
-            div(null, "parameter list"),
+      ([name, data]): h.HtmlElement =>
+        h.div("function-" + name, [
+          h.h3(name),
+          h.div(null, data.document),
+          h.div(null, [
+            h.div(null, "parameter list"),
             parameterListToHtml(name, data.parameters)
           ]),
-          div(null, [div(null, "return type"), typeToHtml(data.return)]),
-          button("call-function-" + name, "Call")
+          h.div(null, [h.div(null, "return type"), typeToHtml(data.return)]),
+          h.button("call-function-" + name, "Call")
         ])
     )
   );
@@ -169,15 +170,15 @@ const functionMapToHtml = (
 const parameterListToHtml = (
   functionName: string,
   parameterList: ReadonlyArray<[string, type.Type]>
-): HtmlElement =>
-  div(
+): h.HtmlElement =>
+  h.div(
     null,
     parameterList.map(
-      ([parameterName, parameterType]): HtmlElement =>
-        div(null, [
-          div(null, parameterName),
+      ([parameterName, parameterType]): h.HtmlElement =>
+        h.div(null, [
+          h.div(null, parameterName),
           typeToHtml(parameterType),
-          inputText(
+          h.inputText(
             "parameter-input-" + functionName + "-" + parameterName,
             functionName + "-" + parameterName
           )
@@ -185,226 +186,48 @@ const parameterListToHtml = (
     )
   );
 
-const typeToHtml = (type_: type.Type): HtmlElement => {
+const typeToHtml = (type_: type.Type): h.HtmlElement => {
   switch (type_._) {
     case type.Type_.Number:
-      return div(null, "number");
+      return h.div(null, "number");
     case type.Type_.String:
-      return div(null, "string");
+      return h.div(null, "string");
     case type.Type_.Boolean:
-      return div(null, "boolean");
+      return h.div(null, "boolean");
     case type.Type_.Null:
-      return div(null, "null");
+      return h.div(null, "null");
     case type.Type_.Undefined:
-      return div(null, "undefined");
+      return h.div(null, "undefined");
     case type.Type_.Object:
-      return div(
+      return h.div(
         null,
         type_.members.map(
-          ([propertyName, propertyType]): HtmlElement =>
-            div(null, [
-              div(null, propertyName),
-              div(null, propertyType.document),
+          ([propertyName, propertyType]): h.HtmlElement =>
+            h.div(null, [
+              h.div(null, propertyName),
+              h.div(null, propertyType.document),
               typeToHtml(propertyType.type_)
             ])
         )
       );
     case type.Type_.Reference:
-      return div(null, `ref(${type_.name})`);
+      return h.div(null, `ref(${type_.name})`);
     case type.Type_.Union:
-      return div(null, type_.typeList.map(typeToHtml));
+      return h.div(null, type_.typeList.map(typeToHtml));
   }
 };
 
 const typeMapToHtml = (
   typeMap: ReadonlyMap<string, type.TypeData>
-): HtmlElement =>
-  div(
+): h.HtmlElement =>
+  h.div(
     null,
     [...typeMap.entries()].map(
-      ([typeName, typeData]): HtmlElement =>
-        div("type-" + typeName, [
-          h3(typeName),
-          div(null, typeData.document),
+      ([typeName, typeData]): h.HtmlElement =>
+        h.div("type-" + typeName, [
+          h.h3(typeName),
+          h.div(null, typeData.document),
           typeToHtml(typeData.type_)
         ])
     )
   );
-
-const scriptESModules = (code: string): HtmlElement => ({
-  name: "script",
-  attributes: new Map([["type", "module"]]),
-  children: { _: HtmlElementChildren_.RawText, text: code }
-});
-
-const div = (
-  id: string | null,
-  children: ReadonlyArray<HtmlElement> | string
-): HtmlElement => ({
-  name: "div",
-  attributes: new Map(id === null ? [] : [["id", id]]),
-  children:
-    typeof children === "string"
-      ? { _: HtmlElementChildren_.Text, text: children }
-      : { _: HtmlElementChildren_.HtmlElementList, value: children }
-});
-
-const h1 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
-  name: "h1",
-  attributes: new Map(),
-  children:
-    typeof children === "string"
-      ? { _: HtmlElementChildren_.Text, text: children }
-      : { _: HtmlElementChildren_.HtmlElementList, value: children }
-});
-
-const h2 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
-  name: "h2",
-  attributes: new Map(),
-  children:
-    typeof children === "string"
-      ? { _: HtmlElementChildren_.Text, text: children }
-      : { _: HtmlElementChildren_.HtmlElementList, value: children }
-});
-
-const h3 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
-  name: "h3",
-  attributes: new Map(),
-  children:
-    typeof children === "string"
-      ? { _: HtmlElementChildren_.Text, text: children }
-      : { _: HtmlElementChildren_.HtmlElementList, value: children }
-});
-
-const section = (children: ReadonlyArray<HtmlElement>): HtmlElement => ({
-  name: "section",
-  attributes: new Map(),
-  children:
-    typeof children === "string"
-      ? { _: HtmlElementChildren_.Text, text: children }
-      : { _: HtmlElementChildren_.HtmlElementList, value: children }
-});
-
-const inputText = (id: string, name: string): HtmlElement => ({
-  name: "input",
-  attributes: new Map([
-    ["id", id],
-    ["name", name]
-  ]),
-  children: {
-    _: HtmlElementChildren_.NoEndTag
-  }
-});
-
-const button = (
-  id: string,
-  children: ReadonlyArray<HtmlElement> | string
-): HtmlElement => ({
-  name: "button",
-  attributes: new Map([["id", id]]),
-  children:
-    typeof children === "string"
-      ? { _: HtmlElementChildren_.Text, text: children }
-      : { _: HtmlElementChildren_.HtmlElementList, value: children }
-});
-
-const body = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
-  name: "body",
-  attributes: new Map(),
-  children:
-    typeof children === "string"
-      ? { _: HtmlElementChildren_.Text, text: children }
-      : { _: HtmlElementChildren_.HtmlElementList, value: children }
-});
-/**
- * HtmlElement (need validated)
- */
-type HtmlElement = {
-  name: string;
-  /**
-   * 属性名は正しい必要がある
-   */
-  attributes: ReadonlyMap<string, string>;
-  /**
-   * 子供。nullで閉じカッコなし `<img src="url" alt="image">`
-   * `[]`や`""`の場合は `<script src="url"></script>`
-   * `<path d="M1,2 L20,53"/>`のような閉じカッコの省略はしない
-   */
-  children: HtmlElementChildren;
-};
-
-type HtmlElementChildren =
-  | {
-      _: HtmlElementChildren_.HtmlElementList;
-      value: ReadonlyArray<HtmlElement>;
-    }
-  | {
-      _: HtmlElementChildren_.Text;
-      text: string;
-    }
-  | {
-      _: HtmlElementChildren_.RawText;
-      text: string;
-    }
-  | {
-      _: HtmlElementChildren_.NoEndTag;
-    };
-
-const enum HtmlElementChildren_ {
-  HtmlElementList,
-  /**
-   * 中の文字列をエスケープする
-   */
-  Text,
-  /**
-   * 中の文字列をそのまま扱う `<script>`用
-   */
-  RawText,
-  /**
-   * 閉じカッコなし `<img src="url" alt="image">`
-   */
-  NoEndTag
-}
-
-const escapeInHtml = (text: string): string =>
-  text
-    .replace(/&/g, "&amp;")
-    .replace(/>/g, "&gt;")
-    .replace(/</g, "&lt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;")
-    .replace(/`/g, "&#x60;");
-
-const htmlElementToString = (htmlElement: HtmlElement): string => {
-  const startTag =
-    "<" + htmlElement.name + attributesToString(htmlElement.attributes) + ">";
-  const endTag = "</" + htmlElement.name + ">";
-  switch (htmlElement.children._) {
-    case HtmlElementChildren_.HtmlElementList:
-      return (
-        startTag +
-        htmlElement.children.value.map(htmlElementToString).join("") +
-        endTag
-      );
-    case HtmlElementChildren_.Text:
-      return startTag + escapeInHtml(htmlElement.children.text) + endTag;
-    case HtmlElementChildren_.RawText:
-      return startTag + htmlElement.children.text + endTag;
-    case HtmlElementChildren_.NoEndTag:
-      return startTag;
-  }
-};
-
-const attributesToString = (
-  attributeMap: ReadonlyMap<string, string>
-): string => {
-  if (attributeMap.size === 0) {
-    return "";
-  }
-  return (
-    " " +
-    [...attributeMap.entries()]
-      .map(([key, value]): string => key + '="' + escapeInHtml(value) + '"')
-      .join(" ")
-  );
-};
