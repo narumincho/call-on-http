@@ -5,13 +5,13 @@ import { expr, typeExpr } from "js-ts-code-generator";
 import * as util from "util";
 
 export const emit = (
-  serverCode: type.ServerCode,
+  serverCodeAnalysisResult: type.ServerCodeAnalysisResult,
   outFileName: string
 ): Promise<void> =>
   new Promise((resolve, reject) => {
-    console.log(util.inspect(serverCode, false, null));
+    console.log(util.inspect(serverCodeAnalysisResult, false, null));
 
-    const html = createHtmlFromServerCode(serverCode);
+    const html = createHtmlFromServerCode(serverCodeAnalysisResult);
 
     const expressModule = generator.createImportNodeModule<
       ["Request", "Response"],
@@ -80,18 +80,24 @@ export const emit = (
     );
   });
 
-const browserCode = (serverCode: type.ServerCode): string => {
+const browserCode = (
+  serverCodeAnalysisResult: type.ServerCodeAnalysisResult
+): string => {
   return 'console.log("ok")';
 };
 
-const createHtmlFromServerCode = (serverCode: type.ServerCode): string => {
+const createHtmlFromServerCode = (
+  serverCodeAnalysisResult: type.ServerCodeAnalysisResult
+): string => {
   return `<!doctype html>
 <html lang="ja">
 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>${escapeInHtml(serverCode.apiName)} : API Document</title>
+    <title>${escapeInHtml(
+      serverCodeAnalysisResult.apiName
+    )} : API Document</title>
     <style>
       body {
         margin: 0;
@@ -121,14 +127,19 @@ const createHtmlFromServerCode = (serverCode: type.ServerCode): string => {
         background-color: rgba(100,255,2100, 0.1);
       }
     </style>
-    ${htmlElementToString(scriptESModules(browserCode(serverCode)))}
+    ${htmlElementToString(
+      scriptESModules(browserCode(serverCodeAnalysisResult))
+    )}
 </head>
 
 ${htmlElementToString(
   body([
-    h1(serverCode.apiName + "API Document"),
-    section([h2("Function"), functionMapToHtml(serverCode.functionMap)]),
-    section([h2("Type"), typeMapToHtml(serverCode.typeMap)])
+    h1(serverCodeAnalysisResult.apiName + "API Document"),
+    section([
+      h2("Function"),
+      functionMapToHtml(serverCodeAnalysisResult.functionMap)
+    ]),
+    section([h2("Type"), typeMapToHtml(serverCodeAnalysisResult.typeMap)])
   ])
 )}
 </html>

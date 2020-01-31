@@ -79,7 +79,7 @@ export const serverCodeFromFile = (
   apiName: string,
   rootSourceFileName: string,
   compilerOptions: ts.CompilerOptions & { strict: true }
-): type.ServerCode => {
+): type.ServerCodeAnalysisResult => {
   const program = ts.createProgram({
     rootNames: [rootSourceFileName],
     options: compilerOptions

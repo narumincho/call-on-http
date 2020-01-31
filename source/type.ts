@@ -1,4 +1,4 @@
-export type ServerCode = {
+export type ServerCodeAnalysisResult = {
   apiName: string;
   functionMap: Map<string, FunctionData>;
   typeMap: Map<string, TypeData>;
