@@ -80,6 +80,10 @@ export const emit = (
     );
   });
 
+const browserCode = (serverCode: type.ServerCode): string => {
+  return 'console.log("ok")';
+};
+
 const createHtmlFromServerCode = (serverCode: type.ServerCode): string => {
   return `<!doctype html>
 <html lang="ja">
@@ -117,8 +121,7 @@ const createHtmlFromServerCode = (serverCode: type.ServerCode): string => {
         background-color: rgba(100,255,2100, 0.1);
       }
     </style>
-    <script type="module">
-    </script>
+    ${htmlElementToString(scriptESModules(browserCode(serverCode)))}
 </head>
 
 ${htmlElementToString(
@@ -217,37 +220,58 @@ const typeMapToHtml = (
     )
   );
 
+const scriptESModules = (code: string): HtmlElement => ({
+  name: "script",
+  attributes: new Map([["type", "module"]]),
+  children: { _: HtmlElementChildren_.RawText, text: code }
+});
+
 const div = (
   id: string | null,
   children: ReadonlyArray<HtmlElement> | string
 ): HtmlElement => ({
   name: "div",
   attributes: new Map(id === null ? [] : [["id", id]]),
-  children
+  children:
+    typeof children === "string"
+      ? { _: HtmlElementChildren_.Text, text: children }
+      : { _: HtmlElementChildren_.HtmlElementList, value: children }
 });
 
 const h1 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
   name: "h1",
   attributes: new Map(),
-  children
+  children:
+    typeof children === "string"
+      ? { _: HtmlElementChildren_.Text, text: children }
+      : { _: HtmlElementChildren_.HtmlElementList, value: children }
 });
 
 const h2 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
   name: "h2",
   attributes: new Map(),
-  children
+  children:
+    typeof children === "string"
+      ? { _: HtmlElementChildren_.Text, text: children }
+      : { _: HtmlElementChildren_.HtmlElementList, value: children }
 });
 
 const h3 = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
   name: "h3",
   attributes: new Map(),
-  children
+  children:
+    typeof children === "string"
+      ? { _: HtmlElementChildren_.Text, text: children }
+      : { _: HtmlElementChildren_.HtmlElementList, value: children }
 });
 
 const section = (children: ReadonlyArray<HtmlElement>): HtmlElement => ({
   name: "section",
   attributes: new Map(),
-  children
+  children:
+    typeof children === "string"
+      ? { _: HtmlElementChildren_.Text, text: children }
+      : { _: HtmlElementChildren_.HtmlElementList, value: children }
 });
 
 const inputText = (id: string, name: string): HtmlElement => ({
@@ -256,7 +280,9 @@ const inputText = (id: string, name: string): HtmlElement => ({
     ["id", id],
     ["name", name]
   ]),
-  children: null
+  children: {
+    _: HtmlElementChildren_.NoEndTag
+  }
 });
 
 const button = (
@@ -265,13 +291,19 @@ const button = (
 ): HtmlElement => ({
   name: "button",
   attributes: new Map([["id", id]]),
-  children
+  children:
+    typeof children === "string"
+      ? { _: HtmlElementChildren_.Text, text: children }
+      : { _: HtmlElementChildren_.HtmlElementList, value: children }
 });
 
 const body = (children: ReadonlyArray<HtmlElement> | string): HtmlElement => ({
   name: "body",
   attributes: new Map(),
-  children
+  children:
+    typeof children === "string"
+      ? { _: HtmlElementChildren_.Text, text: children }
+      : { _: HtmlElementChildren_.HtmlElementList, value: children }
 });
 /**
  * HtmlElement (need validated)
@@ -287,8 +319,41 @@ type HtmlElement = {
    * `[]`や`""`の場合は `<script src="url"></script>`
    * `<path d="M1,2 L20,53"/>`のような閉じカッコの省略はしない
    */
-  children: ReadonlyArray<HtmlElement> | string | null;
+  children: HtmlElementChildren;
 };
+
+type HtmlElementChildren =
+  | {
+      _: HtmlElementChildren_.HtmlElementList;
+      value: ReadonlyArray<HtmlElement>;
+    }
+  | {
+      _: HtmlElementChildren_.Text;
+      text: string;
+    }
+  | {
+      _: HtmlElementChildren_.RawText;
+      text: string;
+    }
+  | {
+      _: HtmlElementChildren_.NoEndTag;
+    };
+
+const enum HtmlElementChildren_ {
+  HtmlElementList,
+  /**
+   * 中の文字列をエスケープする
+   */
+  Text,
+  /**
+   * 中の文字列をそのまま扱う `<script>`用
+   */
+  RawText,
+  /**
+   * 閉じカッコなし `<img src="url" alt="image">`
+   */
+  NoEndTag
+}
 
 const escapeInHtml = (text: string): string =>
   text
@@ -300,23 +365,23 @@ const escapeInHtml = (text: string): string =>
     .replace(/`/g, "&#x60;");
 
 const htmlElementToString = (htmlElement: HtmlElement): string => {
-  if (htmlElement.children === null) {
-    return (
-      "<" + htmlElement.name + attributesToString(htmlElement.attributes) + ">"
-    );
+  const startTag =
+    "<" + htmlElement.name + attributesToString(htmlElement.attributes) + ">";
+  const endTag = "</" + htmlElement.name + ">";
+  switch (htmlElement.children._) {
+    case HtmlElementChildren_.HtmlElementList:
+      return (
+        startTag +
+        htmlElement.children.value.map(htmlElementToString).join("") +
+        endTag
+      );
+    case HtmlElementChildren_.Text:
+      return startTag + escapeInHtml(htmlElement.children.text) + endTag;
+    case HtmlElementChildren_.RawText:
+      return startTag + htmlElement.children.text + endTag;
+    case HtmlElementChildren_.NoEndTag:
+      return startTag;
   }
-  return (
-    "<" +
-    htmlElement.name +
-    attributesToString(htmlElement.attributes) +
-    ">" +
-    (typeof htmlElement.children === "string"
-      ? escapeInHtml(htmlElement.children)
-      : htmlElement.children.map(htmlElementToString).join("")) +
-    "</" +
-    htmlElement.name +
-    ">"
-  );
 };
 
 const attributesToString = (
