@@ -123,10 +123,12 @@ const createHtmlFromServerCode = (
     }`,
     script: browserCode(serverCodeAnalysisResult),
     iconPath: [],
+    coverImagePath: [],
     origin: "",
     pageIconPath: [],
     description: "",
     themeColor: "#00ff00",
+    twitterCard: h.TwitterCard.SummaryCard,
     language: h.Language.Japanese,
     body: [
       h.h1(serverCodeAnalysisResult.apiName + "API Document"),

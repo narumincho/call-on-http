@@ -149,10 +149,16 @@ export type Html = {
   readonly iconPath: ReadonlyArray<string>;
   /** ページのアイコン画像のパス。省略時は`iconPath`と同じになる */
   readonly pageIconPath?: ReadonlyArray<string>;
+  /** OGPに使われるカバー画像のパス */
+  readonly coverImagePath: ReadonlyArray<string>;
   /** オリジン https://definy-lang.web.app のようなスキーマとドメインとポート番号をまとめたもの */
   readonly origin?: string;
+  /** パス */
+  readonly path?: ReadonlyArray<string>;
   /** マニフェストのパス */
   readonly manifestPath?: ReadonlyArray<string>;
+  /** Twitter Card。Twitterでシェアしたときの表示をどうするか */
+  readonly twitterCard: TwitterCard;
   /** スタイル。CSS */
   readonly style?: string;
   /** ES Modules形式のJavaScript */
@@ -174,6 +180,22 @@ const languageToIETFLanguageTag = (language: Language): string => {
       return "ja";
     case Language.English:
       return "en";
+  }
+};
+
+export const enum TwitterCard {
+  /** 画像を横に並べて表示 */
+  SummaryCard,
+  /** 画像を大きく表示 */
+  SummaryCardWithLargeImage
+}
+
+const twitterCardToString = (twitterCard: TwitterCard): string => {
+  switch (twitterCard) {
+    case TwitterCard.SummaryCard:
+      return "summary";
+    case TwitterCard.SummaryCardWithLargeImage:
+      return "summary_large_image";
   }
 };
 
@@ -226,7 +248,17 @@ const headElement = (html: Html): Element => ({
         ? []
         : [manifestElement(html.manifestPath)]),
       ...(html.style === undefined ? [] : [cssStyleElement(html.style)]),
-      ...(html.script === undefined ? [] : [javaScriptElement(html.script)])
+      ...(html.script === undefined ? [] : [javaScriptElement(html.script)]),
+      twitterCardElement(html.twitterCard),
+      ...(html.origin === undefined || html.path === undefined
+        ? []
+        : [ogUrlElement(html.origin, html.path)]),
+      ogTitleElement(html.pageName),
+      ogSiteName(html.appName),
+      ogDescription(html.description),
+      ...(html.origin === undefined
+        ? []
+        : [ogImage(html.origin, html.coverImagePath)])
     ]
   }
 });
@@ -318,9 +350,76 @@ const javaScriptElement = (code: string): Element => ({
   children: { _: HtmlElementChildren_.RawText, text: code }
 });
 
-const escapeUrl = (text: string): string => {
-  return encodeURIComponent(text);
-};
+const twitterCardElement = (twitterCard: TwitterCard): Element => ({
+  name: "meta",
+  attributes: new Map([
+    ["name", "twitter:card"],
+    ["content", twitterCardToString(twitterCard)]
+  ]),
+  children: { _: HtmlElementChildren_.NoEndTag }
+});
+
+const ogUrlElement = (orgin: string, path: ReadonlyArray<string>): Element => ({
+  name: "meta",
+  attributes: new Map([
+    ["property", "og:url"],
+    ["content", orgin + "/" + path.map(escapeUrl).join("/")]
+  ]),
+  children: { _: HtmlElementChildren_.NoEndTag }
+});
+
+const ogTitleElement = (title: string): Element => ({
+  name: "meta",
+  attributes: new Map([
+    ["property", "og:title"],
+    ["content", title]
+  ]),
+  children: {
+    _: HtmlElementChildren_.NoEndTag
+  }
+});
+
+const ogSiteName = (siteName: string): Element => ({
+  name: "meta",
+  attributes: new Map([
+    ["property", "og:site_name"],
+    ["content", siteName]
+  ]),
+  children: {
+    _: HtmlElementChildren_.NoEndTag
+  }
+});
+
+const ogDescription = (description: string): Element => ({
+  name: "meta",
+  attributes: new Map([
+    ["property", "og:description"],
+    ["content", description]
+  ]),
+  children: {
+    _: HtmlElementChildren_.NoEndTag
+  }
+});
+
+const ogImage = (
+  origin: string,
+  imagePath: ReadonlyArray<string>
+): Element => ({
+  name: "meta",
+  attributes: new Map([
+    ["property", "og:image"],
+    ["content", origin + "/" + imagePath.map(escapeUrl).join("/")]
+  ]),
+  children: {
+    _: HtmlElementChildren_.NoEndTag
+  }
+});
+
+const escapeUrl = (text: string): string =>
+  encodeURIComponent(text).replace(
+    /[!'()*]/gu,
+    (c: string) => "%" + c.charCodeAt(0).toString(16)
+  );
 
 const htmlElementToString = (htmlElement: Element): string => {
   const startTag =
