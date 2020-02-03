@@ -3,7 +3,7 @@ import * as generator from "js-ts-code-generator";
 import * as fs from "fs";
 import { expr, typeExpr } from "js-ts-code-generator";
 import * as util from "util";
-import * as h from "./htmlGenerator";
+import * as h from "@narumincho/html";
 
 export const emit = (
   serverCodeAnalysisResult: type.ServerCodeAnalysisResult,
