@@ -90,70 +90,62 @@ const browserCode = (
 const createHtmlFromServerCode = (
   serverCodeAnalysisResult: type.ServerCodeAnalysisResult
 ): string => {
-  return `<!doctype html>
-<html lang="ja">
+  return h.toString({
+    appName: serverCodeAnalysisResult.apiName + "API Document",
+    pageName: serverCodeAnalysisResult.apiName + "API Document",
+    style: `
+    body {
+      margin: 0;
+      background-color: black;
+      color: white;
+    }
 
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>${h.escapeInHtml(
-      serverCodeAnalysisResult.apiName
-    )} : API Document</title>
-    <style>
-      body {
-        margin: 0;
-        background-color: black;
-        color: white;
-      }
+    h1 {
+      margin: 0;
+      padding: 1rem;
+    }
 
-      h1 {
-        margin: 0;
-        padding: 1rem;
-      }
+    h2 {
+      margin: 0;
+    }
 
-      h2 {
-        margin: 0;
-      }
+    h3 {
+      margin: 0;
+    }
 
-      h3 {
-        margin: 0;
-      }
+    section {
+      padding: 1rem;
+    }
 
-      section {
-        padding: 1rem;
-      }
-
-      div {
-        padding: 0.5rem;
-        background-color: rgba(100,255,2100, 0.1);
-      }
-    </style>
-    ${h.htmlElementToString(
-      h.scriptESModules(browserCode(serverCodeAnalysisResult))
-    )}
-</head>
-
-${h.htmlElementToString(
-  h.body([
-    h.h1(serverCodeAnalysisResult.apiName + "API Document"),
-    h.section([
-      h.h2("Function"),
-      functionMapToHtml(serverCodeAnalysisResult.functionMap)
-    ]),
-    h.section([h.h2("Type"), typeMapToHtml(serverCodeAnalysisResult.typeMap)])
-  ])
-)}
-</html>
-`;
+    div {
+      padding: 0.5rem;
+      background-color: rgba(100,255,2100, 0.1);
+    }`,
+    script: browserCode(serverCodeAnalysisResult),
+    iconPath: [],
+    origin: "",
+    pageIconPath: [],
+    description: "",
+    themeColor: "#00ff00",
+    language: h.Language.Japanese,
+    body: [
+      h.h1(serverCodeAnalysisResult.apiName + "API Document"),
+      h.section([
+        h.h2("Function"),
+        functionMapToHtml(serverCodeAnalysisResult.functionMap)
+      ]),
+      h.section([h.h2("Type"), typeMapToHtml(serverCodeAnalysisResult.typeMap)])
+    ]
+  });
 };
 
 const functionMapToHtml = (
   functionMap: Map<string, type.FunctionData>
-): h.HtmlElement =>
+): h.Element =>
   h.div(
     null,
     [...functionMap.entries()].map(
-      ([name, data]): h.HtmlElement =>
+      ([name, data]): h.Element =>
         h.div("function-" + name, [
           h.h3(name),
           h.div(null, data.document),
@@ -170,11 +162,11 @@ const functionMapToHtml = (
 const parameterListToHtml = (
   functionName: string,
   parameterList: ReadonlyArray<[string, type.Type]>
-): h.HtmlElement =>
+): h.Element =>
   h.div(
     null,
     parameterList.map(
-      ([parameterName, parameterType]): h.HtmlElement =>
+      ([parameterName, parameterType]): h.Element =>
         h.div(null, [
           h.div(null, parameterName),
           typeToHtml(parameterType),
@@ -186,7 +178,7 @@ const parameterListToHtml = (
     )
   );
 
-const typeToHtml = (type_: type.Type): h.HtmlElement => {
+const typeToHtml = (type_: type.Type): h.Element => {
   switch (type_._) {
     case type.Type_.Number:
       return h.div(null, "number");
@@ -202,7 +194,7 @@ const typeToHtml = (type_: type.Type): h.HtmlElement => {
       return h.div(
         null,
         type_.members.map(
-          ([propertyName, propertyType]): h.HtmlElement =>
+          ([propertyName, propertyType]): h.Element =>
             h.div(null, [
               h.div(null, propertyName),
               h.div(null, propertyType.document),
@@ -219,11 +211,11 @@ const typeToHtml = (type_: type.Type): h.HtmlElement => {
 
 const typeMapToHtml = (
   typeMap: ReadonlyMap<string, type.TypeData>
-): h.HtmlElement =>
+): h.Element =>
   h.div(
     null,
     [...typeMap.entries()].map(
-      ([typeName, typeData]): h.HtmlElement =>
+      ([typeName, typeData]): h.Element =>
         h.div("type-" + typeName, [
           h.h3(typeName),
           h.div(null, typeData.document),
