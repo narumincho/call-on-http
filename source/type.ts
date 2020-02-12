@@ -16,8 +16,8 @@ export const createRandomId = (): Id => {
 export type ApiFunction = {
   id: Id;
   name: string;
-  input: RequestType | null;
-  output: RequestType;
+  request: RequestType | null;
+  response: RequestType;
 };
 
 export type RequestType =

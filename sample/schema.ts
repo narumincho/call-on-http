@@ -1,7 +1,12 @@
 import * as callOnHttp from "../source/index";
 
+const responseUserTypeId = callOnHttp.type.idFromString(
+  "ec50f1628ff9bac06020a522855669be"
+);
+
 const responseUserType: callOnHttp.type.RequestType = callOnHttp.type.responseObjectType(
   {
+    id: responseUserTypeId,
     name: "User",
     description: "ユーザー",
     cacheType: callOnHttp.type.cacheById(60),
@@ -36,9 +41,9 @@ callOnHttp.generateServerCodeAndUpdateTemplate(
   [
     {
       name: "getUser",
-      request: callOnHttp.type.idType(userTypeName),
+      request: callOnHttp.type.idType(responseUserTypeId),
       response: responseUserType,
-      id: "b2c29cb62c4081e9e6613146f7ae15dc"
+      id: callOnHttp.type.idFromString("b2c29cb62c4081e9e6613146f7ae15dc")
     }
   ],
   "./sample/out.ts",
