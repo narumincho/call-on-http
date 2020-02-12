@@ -2,23 +2,23 @@ import * as callOnHttp from "../source/index";
 
 const userTypeName = "User";
 
-const userType: callOnHttp.Type = callOnHttp.objectType({
+const userType: callOnHttp.type.Type = callOnHttp.type.objectType({
   name: userTypeName,
   description: "ユーザー",
-  cacheType: callOnHttp.cacheById(60),
+  cacheType: callOnHttp.type.cacheById(60),
   member: [
-    { name: "name", type: callOnHttp.stringType, description: "名前" },
-    { name: "age", type: callOnHttp.integerType, description: "年齢" }
+    { name: "name", type: callOnHttp.type.stringType, description: "名前" },
+    { name: "age", type: callOnHttp.type.integerType, description: "年齢" }
   ]
 });
 
-callOnHttp.generateServerCodeAndUpdateTemplate({
-  functionList: [
+callOnHttp.generateServerCodeAndUpdateTemplate(
+  [
     {
       name: "getUser",
-      request: callOnHttp.idType(userTypeName),
+      request: callOnHttp.type.idType(userTypeName),
       response: userType
     }
   ],
-  outputPath: "./sample/out.ts"
-});
+  "./sample/out.ts"
+);
