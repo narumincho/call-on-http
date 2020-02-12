@@ -59,7 +59,7 @@ app.use(express.raw());
 app.use(path, out.middleware);
 `);
   }
-  const b = new Uint8Array(body as Buffer);
+  const b = new Uint8Array(body as Buffer | Uint8Array);
   if (b[0] !== 23 || b[1] !== 32) {
     response.status(400);
     response.send("api updated. use new client code at " + request.url);
@@ -95,3 +95,33 @@ app.use(path, out.middleware);
   response.status(400);
   response.send("invalid function index. index=" + functionIndex);
 };
+
+/**
+ * ドキュメント用のコード
+ */
+
+const idToCallOnHttpBinary = id => {
+  return id;
+};
+
+const callOnHttpBinaryToId = binary => {
+  return binary;
+};
+
+const getUser = id =>
+  new Promise((resolve, reject) => {
+    fetch(idToCallOnHttpBinary(id)).then(e => {
+      resolve(callOnHttpBinaryToId(e));
+    });
+  });
+
+document
+  .getElementById("functionName--sendButton")
+  .addEventListener("click", () => {
+    getUser(
+      document.getElementById("functionName-argName").value,
+      document.getElementById("functionName-argName").value
+    ).then(result => {
+      document.getElementById("functionName--result").textContent = result;
+    });
+  });
