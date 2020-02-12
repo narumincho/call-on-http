@@ -100,28 +100,30 @@ app.use(path, out.middleware);
  * ドキュメント用のコード
  */
 
-const idToCallOnHttpBinary = id => {
+export const idToCallOnHttpBinary = id => {
   return id;
 };
 
-const callOnHttpBinaryToId = binary => {
+export const callOnHttpBinaryToId = binary => {
   return binary;
 };
 
-const getUser = id =>
+export const getUser = id =>
   new Promise((resolve, reject) => {
     fetch(idToCallOnHttpBinary(id)).then(e => {
       resolve(callOnHttpBinaryToId(e));
     });
   });
 
-document
-  .getElementById("functionName--sendButton")
-  .addEventListener("click", () => {
-    getUser(
-      document.getElementById("functionName-argName").value,
-      document.getElementById("functionName-argName").value
-    ).then(result => {
-      document.getElementById("functionName--result").textContent = result;
+(() => {
+  document
+    .getElementById("functionName--sendButton")
+    .addEventListener("click", () => {
+      getUser(
+        document.getElementById("functionName-argName").value,
+        document.getElementById("functionName-argName").value
+      ).then(result => {
+        document.getElementById("functionName--result").textContent = result;
+      });
     });
-  });
+})();

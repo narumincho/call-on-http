@@ -68,9 +68,10 @@ export const emit = (
       document: "ミドルウェア"
     });
 
-    const nodeJsCode: generator.NodeJsCode = {
+    const nodeJsCode: generator.Code = {
       exportTypeAliasList: [],
-      exportFunctionList: [middleware]
+      exportFunctionList: [middleware],
+      statementList: []
     };
     fs.writeFile(
       outFileName,
