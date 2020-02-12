@@ -6,12 +6,10 @@ import * as util from "util";
 import * as h from "@narumincho/html";
 
 export const emit = (
-  serverCodeAnalysisResult: type.ServerCodeAnalysisResult,
+  functionList: ReadonlyArray<type.ApiFunction>,
   outFileName: string
 ): Promise<void> =>
   new Promise((resolve, reject) => {
-    console.log(util.inspect(serverCodeAnalysisResult, false, null));
-
     const html = createHtmlFromServerCode(serverCodeAnalysisResult);
 
     const expressModule = generator.createImportNodeModule<
@@ -200,7 +198,7 @@ const functionMapToHtml = (
 
 const parameterListToHtml = (
   functionName: string,
-  parameterList: ReadonlyArray<[string, type.Type]>
+  parameterList: ReadonlyArray<[string, type.RequestType]>
 ): h.Element =>
   h.div(
     null,
@@ -217,7 +215,7 @@ const parameterListToHtml = (
     )
   );
 
-const typeToHtml = (type_: type.Type): h.Element => {
+const typeToHtml = (type_: type.RequestType): h.Element => {
   switch (type_._) {
     case type.Type_.Number:
       return h.div(null, "number");

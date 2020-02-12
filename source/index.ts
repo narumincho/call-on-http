@@ -4,18 +4,6 @@ import * as emitter from "./emitter";
 
 export { type };
 
-type Output = {
-  _id: Id;
-  _hash: Hash;
-  _readTime: Time;
-};
-
-export type Id = string;
-
-export type Hash = string;
-
-type Time = number;
-
 export const generateServerCodeAndUpdateTemplate = (
   functionList: ReadonlyArray<type.ApiFunction>,
   serverCodePath: string,
