@@ -85,7 +85,41 @@ export const emit = (
 const browserCode = (
   serverCodeAnalysisResult: type.ServerCodeAnalysisResult
 ): string => {
-  return 'console.log("ok")';
+  const global = generator.createGlobalNamespace<[], ["document", "console"]>(
+    [],
+    ["document", "console"]
+  );
+  const document = global.variableList.document;
+  const console = global.variableList.console;
+
+  const code: generator.Code = {
+    exportFunctionList: [],
+    exportTypeAliasList: [],
+    statementList: [
+      ...serverCodeAnalysisResult.functionMap.entries()
+    ].map(([name, func]) =>
+      expr.evaluateExpr(
+        expr.callMethod(
+          expr.callMethod(document, "getElementById", [
+            expr.stringLiteral(requestButtonId(name))
+          ]),
+          "addEventListener",
+          [
+            expr.stringLiteral("click"),
+            expr.lambdaReturnVoid(
+              [],
+              [
+                expr.evaluateExpr(
+                  expr.callMethod(console, "log", [expr.stringLiteral(name)])
+                )
+              ]
+            )
+          ]
+        )
+      )
+    )
+  };
+  return generator.toESModulesBrowserCode(code);
 };
 
 const createHtmlFromServerCode = (
@@ -159,7 +193,7 @@ const functionMapToHtml = (
             parameterListToHtml(name, data.parameters)
           ]),
           h.div(null, [h.div(null, "return type"), typeToHtml(data.return)]),
-          h.button("call-function-" + name, "Call")
+          h.button(requestButtonId(name), "Request")
         ])
     )
   );
@@ -228,3 +262,6 @@ const typeMapToHtml = (
         ])
     )
   );
+
+const requestButtonId = (functionName: string): string =>
+  "request-" + functionName;
