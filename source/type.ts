@@ -1,4 +1,13 @@
+import * as crypto from "crypto";
+
+export type Id = string & { _id: never };
+
+export const createRandomId = (): Id => {
+  return crypto.randomBytes(16).toString("hex") as Id;
+};
+
 export type ApiFunction = {
+  id: Id;
   name: string;
   input: Type | null;
   output: Type;
@@ -17,7 +26,12 @@ export type Type =
       name: string;
       description: string;
       cacheType: CacheType;
-      member: ReadonlyArray<{ name: string; description: string; type: Type }>;
+      member: ReadonlyArray<{
+        id: Id;
+        name: string;
+        description: string;
+        type: Type;
+      }>;
     };
 
 const enum Type_ {
@@ -55,17 +69,17 @@ export type CacheType =
       _: CacheType_.Never;
     }
   | {
-      _: CacheType_.Id;
-      updateSeconds: number;
+      _: CacheType_.CacheById;
+      freshSeconds: number;
     }
   | {
-      _: CacheType_.Hash;
+      _: CacheType_.cacheByHash;
     };
 
 const enum CacheType_ {
   Never,
-  Id,
-  Hash
+  CacheById,
+  cacheByHash
 }
 
 export const cacheNever: CacheType = {
@@ -73,10 +87,10 @@ export const cacheNever: CacheType = {
 };
 
 export const cacheById = (updateSeconds: number): CacheType => ({
-  _: CacheType_.Id,
-  updateSeconds
+  _: CacheType_.CacheById,
+  freshSeconds: updateSeconds
 });
 
 export const cacheByHash: CacheType = {
-  _: CacheType_.Hash
+  _: CacheType_.cacheByHash
 };

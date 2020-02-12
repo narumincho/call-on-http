@@ -126,8 +126,7 @@ type User = {
 };
 
 /* =================================================
- *        この下のコードを書き換えてください
- *      関数名を変更するときは上の関数も変えてください
+ *           この下のコードを書き換えてください
  * =================================================
  */
 
@@ -137,7 +136,7 @@ type User = {
  * ユーザの情報を取得する
  */
 
-const getUser = (request: UserId): User => {
+const getUser = (request: UserId): Promise<User> => {
   return {
     _id: request,
     name: "sample text",
