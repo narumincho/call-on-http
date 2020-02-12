@@ -9,5 +9,5 @@
     "newLine": "LF",
     "outDir": "distribution"
   },
-  "files": ["source/index.ts"]
+  "files": ["./source/index.ts"]
 }
