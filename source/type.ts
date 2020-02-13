@@ -16,8 +16,9 @@ export const createRandomId = (): Id => {
 export type ApiFunction = {
   id: Id;
   name: string;
-  request: RequestType | null;
-  response: RequestType;
+  description: string;
+  request: RequestObject;
+  response: ResponseObject;
 };
 
 export type RequestType =
@@ -31,20 +32,24 @@ export type RequestType =
   | { _: Type_.List; type: RequestType }
   | {
       _: Type_.Object;
+      requestObject: RequestObject;
+    };
+
+export type RequestObject = {
+  id: Id;
+  name: string;
+  description: string;
+  patternList: ReadonlyArray<{
+    id: Id;
+    name: string;
+    member: ReadonlyArray<{
       id: Id;
       name: string;
       description: string;
-      patternList: ReadonlyArray<{
-        id: Id;
-        name: string;
-        member: ReadonlyArray<{
-          id: Id;
-          name: string;
-          description: string;
-          type: RequestType;
-        }>;
-      }>;
-    };
+      type: RequestType;
+    }>;
+  }>;
+};
 
 export type ResponseType =
   | {
@@ -57,68 +62,12 @@ export type ResponseType =
   | { _: Type_.List; type: ResponseType }
   | {
       _: Type_.Object;
-      id: Id;
-      name: string;
-      description: string;
-      cacheType: CacheType;
-      patternList: ReadonlyArray<{
-        id: Id;
-        name: string;
-        member: ReadonlyArray<{
-          id: Id;
-          name: string;
-          description: string;
-          type: RequestType;
-        }>;
-      }>;
+      responseObject: ResponseObject;
     };
 
-const enum Type_ {
-  String,
-  Integer,
-  List,
-  Id,
-  Object
-}
-
-export const stringType: RequestType | ResponseType = {
-  _: Type_.String
-};
-
-export const integerType: RequestType | ResponseType = {
-  _: Type_.Integer
-};
-
-export const idType = (typeId: Id): RequestType | ResponseType => ({
-  _: Type_.Id,
-  typeId
-});
-
-export const requestObjectType = (data: {
+export type ResponseObject = {
   id: Id;
   name: string;
-  description: string;
-  patternList: ReadonlyArray<{
-    id: Id;
-    name: string;
-    member: ReadonlyArray<{
-      id: Id;
-      name: string;
-      description: string;
-      type: RequestType;
-    }>;
-  }>;
-}): RequestType => ({
-  _: Type_.Object,
-  id: data.id,
-  name: data.name,
-  description: data.description,
-  patternList: data.patternList
-});
-
-export const responseObjectType = (data: {
-  name: string;
-  id: Id;
   description: string;
   cacheType: CacheType;
   patternList: ReadonlyArray<{
@@ -131,13 +80,41 @@ export const responseObjectType = (data: {
       type: RequestType;
     }>;
   }>;
-}): ResponseType => ({
+};
+
+const enum Type_ {
+  String,
+  Integer,
+  List,
+  Id,
+  Object
+}
+
+export const stringType: RequestType & ResponseType = {
+  _: Type_.String
+};
+
+export const integerType: RequestType & ResponseType = {
+  _: Type_.Integer
+};
+
+export const idType = (typeId: Id): RequestType & ResponseType => ({
+  _: Type_.Id,
+  typeId
+});
+
+export const requestObjectType = (
+  requestObject: RequestObject
+): RequestType => ({
   _: Type_.Object,
-  id: data.id,
-  name: data.name,
-  description: data.description,
-  cacheType: data.cacheType,
-  patternList: data.patternList
+  requestObject
+});
+
+export const responseObjectType = (
+  responseObject: ResponseObject
+): ResponseType => ({
+  _: Type_.Object,
+  responseObject
 });
 
 export type CacheType =

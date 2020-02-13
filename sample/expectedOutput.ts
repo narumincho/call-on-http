@@ -125,6 +125,15 @@ type User = {
   _readTime: Date;
 };
 
+type ImageId = string & { _4763daedf5827ab4a2e2ff064bd905eb: never };
+
+type Image = {
+  /**
+   * @id 32fd9e95b400a294393d5ccfb25c103d
+   */
+  data: Uint8Array;
+};
+
 /* =================================================
  *           この下のコードを書き換えてください
  * =================================================
@@ -144,3 +153,23 @@ const getUser = (request: UserId): Promise<User> => {
     _readTime: new Date()
   };
 };
+
+/**
+ * @id e826237c70da15fd80cc03dfeb0985d4
+ *
+ * ユーザの情報を取得する
+ */
+
+const getImage = (request: UserId): Promise<User> => {
+  return {
+    _id: request,
+    name: "sample text",
+    age: 28,
+    _readTime: new Date()
+  };
+};
+
+/** =======================================
+ *           書き換えるコード終了
+ * =======================================
+ */

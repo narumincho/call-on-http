@@ -1,88 +1,78 @@
 import * as type from "./type";
 import * as generator from "js-ts-code-generator";
-import * as fs from "fs";
 import { expr, typeExpr } from "js-ts-code-generator";
-import * as util from "util";
 import * as h from "@narumincho/html";
 
 export const emit = (
-  functionList: ReadonlyArray<type.ApiFunction>,
-  outFileName: string
-): Promise<void> =>
-  new Promise((resolve, reject) => {
-    const html = createHtmlFromServerCode(serverCodeAnalysisResult);
+  apiName: string,
+  functionList: ReadonlyArray<type.ApiFunction>
+): string => {
+  const html = createHtmlFromServerCode(apiName, functionList);
 
-    const expressModule = generator.createImportNodeModule<
-      ["Request", "Response"],
-      []
-    >("express", ["Request", "Response"], []);
+  const expressModule = generator.createImportNodeModule<
+    ["Request", "Response"],
+    []
+  >("express", ["Request", "Response"], []);
 
-    const middleware = generator.exportFunction({
-      name: "middleware",
-      parameterList: [
-        {
-          name: "request",
-          document: "リクエスト",
-          typeExpr: expressModule.typeList.Request
-        },
-        {
-          name: "response",
-          document: "レスポンス",
-          typeExpr: expressModule.typeList.Response
-        }
-      ],
-      returnType: null,
-      statementList: [
-        expr.variableDefinition(
-          typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
-          expr.get(expr.get(expr.argument(0, 0), "headers"), "accept")
+  const middleware = generator.exportFunction({
+    name: "middleware",
+    parameterList: [
+      {
+        name: "request",
+        document: "リクエスト",
+        typeExpr: expressModule.typeList.Request
+      },
+      {
+        name: "response",
+        document: "レスポンス",
+        typeExpr: expressModule.typeList.Response
+      }
+    ],
+    returnType: null,
+    statementList: [
+      expr.variableDefinition(
+        typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
+        expr.get(expr.get(expr.argument(0, 0), "headers"), "accept")
+      ),
+      expr.ifStatement(
+        expr.logicalAnd(
+          expr.notEqual(expr.localVariable(0, 0), expr.undefinedLiteral),
+          expr.callMethod(expr.localVariable(0, 0), "includes", [
+            expr.literal("text/html")
+          ])
         ),
-        expr.ifStatement(
-          expr.logicalAnd(
-            expr.notEqual(expr.localVariable(0, 0), expr.undefinedLiteral),
-            expr.callMethod(expr.localVariable(0, 0), "includes", [
+        [
+          expr.evaluateExpr(
+            expr.callMethod(expr.argument(1, 1), "setHeader", [
+              expr.literal("content-type"),
               expr.literal("text/html")
             ])
           ),
-          [
-            expr.evaluateExpr(
-              expr.callMethod(expr.argument(1, 1), "setHeader", [
-                expr.literal("content-type"),
-                expr.literal("text/html")
-              ])
-            ),
-            expr.evaluateExpr(
-              expr.callMethod(expr.argument(1, 1), "send", [expr.literal(html)])
-            ),
-            expr.returnVoidStatement
-          ]
-        ),
-        expr.evaluateExpr(
-          expr.callMethod(expr.argument(0, 1), "send", [
-            expr.literal("APIのレスポンス")
-          ])
-        )
-      ],
-      document: "ミドルウェア"
-    });
-
-    const nodeJsCode: generator.Code = {
-      exportTypeAliasList: [],
-      exportFunctionList: [middleware],
-      statementList: []
-    };
-    fs.writeFile(
-      outFileName,
-      generator.toNodeJsCodeAsTypeScript(nodeJsCode),
-      () => {
-        resolve();
-      }
-    );
+          expr.evaluateExpr(
+            expr.callMethod(expr.argument(1, 1), "send", [expr.literal(html)])
+          ),
+          expr.returnVoidStatement
+        ]
+      ),
+      expr.evaluateExpr(
+        expr.callMethod(expr.argument(0, 1), "send", [
+          expr.literal("APIのレスポンス")
+        ])
+      )
+    ],
+    document: "ミドルウェア"
   });
 
-const browserCode = (
-  serverCodeAnalysisResult: type.ServerCodeAnalysisResult
-): string => {
+  const nodeJsCode: generator.Code = {
+    exportTypeAliasList: [],
+    exportFunctionList: [middleware],
+    statementList: []
+  };
+
+  return generator.toNodeJsCodeAsTypeScript(nodeJsCode);
+};
+
+const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
   const global = generator.createGlobalNamespace<[], ["document", "console"]>(
     [],
     ["document", "console"]
@@ -93,13 +83,11 @@ const browserCode = (
   const code: generator.Code = {
     exportFunctionList: [],
     exportTypeAliasList: [],
-    statementList: [
-      ...serverCodeAnalysisResult.functionMap.entries()
-    ].map(([name, func]) =>
+    statementList: functionList.map(func =>
       expr.evaluateExpr(
         expr.callMethod(
           expr.callMethod(document, "getElementById", [
-            expr.stringLiteral(requestButtonId(name))
+            expr.stringLiteral(requestButtonId(func.id))
           ]),
           "addEventListener",
           [
@@ -108,7 +96,9 @@ const browserCode = (
               [],
               [
                 expr.evaluateExpr(
-                  expr.callMethod(console, "log", [expr.stringLiteral(name)])
+                  expr.callMethod(console, "log", [
+                    expr.stringLiteral(func.name)
+                  ])
                 )
               ]
             )
@@ -117,15 +107,17 @@ const browserCode = (
       )
     )
   };
+
   return generator.toESModulesBrowserCode(code);
 };
 
 const createHtmlFromServerCode = (
-  serverCodeAnalysisResult: type.ServerCodeAnalysisResult
+  apiName: string,
+  functionList: ReadonlyArray<type.ApiFunction>
 ): string => {
   return h.toString({
-    appName: serverCodeAnalysisResult.apiName + "API Document",
-    pageName: serverCodeAnalysisResult.apiName + "API Document",
+    appName: apiName + "API Document",
+    pageName: apiName + "API Document",
     style: `
     body {
       margin: 0;
@@ -154,7 +146,7 @@ const createHtmlFromServerCode = (
       padding: 0.5rem;
       background-color: rgba(100,255,2100, 0.1);
     }`,
-    script: browserCode(serverCodeAnalysisResult),
+    script: browserCode(functionList),
     iconPath: [],
     coverImageUrl: "",
     scriptUrlList: [],
@@ -166,26 +158,23 @@ const createHtmlFromServerCode = (
     twitterCard: h.TwitterCard.SummaryCard,
     language: h.Language.Japanese,
     body: [
-      h.h1(serverCodeAnalysisResult.apiName + "API Document"),
-      h.section([
-        h.h2("Function"),
-        functionMapToHtml(serverCodeAnalysisResult.functionMap)
-      ]),
-      h.section([h.h2("Type"), typeMapToHtml(serverCodeAnalysisResult.typeMap)])
+      h.h1(apiName + "API Document"),
+      h.section([h.h2("Function"), functionMapToHtml(functionList)])
+      // h.section([h.h2("Type"), typeMapToHtml(functionList.typeMap)])
     ]
   });
 };
 
 const functionMapToHtml = (
-  functionMap: Map<string, type.FunctionData>
+  functionList: ReadonlyArray<type.ApiFunction>
 ): h.Element =>
   h.div(
     null,
-    [...functionMap.entries()].map(
-      ([name, data]): h.Element =>
-        h.div("function-" + name, [
-          h.h3(name),
-          h.div(null, data.document),
+    functionList.map(
+      (func): h.Element =>
+        h.div("function-" + func.id, [
+          h.h3(func.name),
+          h.div(null, func.description),
           h.div(null, [
             h.div(null, "parameter list"),
             parameterListToHtml(name, data.parameters)
