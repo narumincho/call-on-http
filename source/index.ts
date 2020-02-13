@@ -1,34 +1,29 @@
-import * as analysisCode from "./analysisCode";
-import * as ts from "typescript";
+import * as fs from "fs";
+import * as type from "./type";
 import * as emitter from "./emitter";
 
-/**
- *
- * @param inputFileName
- * @param compilerOptions
- * @param outFilePath
- */
-export const generateMiddlewareCode = (
-  apiName: string,
-  fileName: string,
-  compilerOptions: ts.CompilerOptions & { strict: true },
-  outFilePath: string
-): void => {
-  const serverCode = analysisCode.serverCodeFromFile(
-    apiName,
-    fileName,
-    compilerOptions
-  );
-  emitter.emit(serverCode, outFilePath);
-};
+export { type };
 
-generateMiddlewareCode(
-  "sample",
-  "./sample/sample.ts",
-  {
-    target: ts.ScriptTarget.ES2020,
-    strict: true
-  },
-  "./sample/out.ts"
-);
-console.log("ok");
+/*
+ *  IDの作成には
+ *
+ *  コマンドライン
+ *  node --eval "console.log(require('crypto').randomBytes(16).toString('hex'))"
+ *
+ *  ブラウザのコンソール (クリップボードへコピーも行う)
+ *  copy([...crypto.getRandomValues(new Uint8Array(16))].map(e=>e.toString(16).padStart(2, "0")).join(""))
+ *
+ *  を使うと便利
+ *
+ */
+
+export const generateServerCodeAndUpdateTemplate = (
+  api: type.Api,
+  serverCodePath: string,
+  option: { allowBreakingChange: boolean }
+): Promise<void> =>
+  new Promise((resolve, reject) => {
+    fs.writeFile(serverCodePath, emitter.emit(api), () => {
+      resolve();
+    });
+  });

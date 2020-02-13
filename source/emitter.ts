@@ -1,90 +1,75 @@
 import * as type from "./type";
 import * as generator from "js-ts-code-generator";
-import * as fs from "fs";
 import { expr, typeExpr } from "js-ts-code-generator";
-import * as util from "util";
 import * as h from "@narumincho/html";
 
-export const emit = (
-  serverCodeAnalysisResult: type.ServerCodeAnalysisResult,
-  outFileName: string
-): Promise<void> =>
-  new Promise((resolve, reject) => {
-    console.log(util.inspect(serverCodeAnalysisResult, false, null));
+export const emit = (api: type.Api): string => {
+  const html = createHtmlFromServerCode(api);
 
-    const html = createHtmlFromServerCode(serverCodeAnalysisResult);
+  const expressModule = generator.createImportNodeModule<
+    ["Request", "Response"],
+    []
+  >("express", ["Request", "Response"], []);
 
-    const expressModule = generator.createImportNodeModule<
-      ["Request", "Response"],
-      []
-    >("express", ["Request", "Response"], []);
-
-    const middleware = generator.exportFunction({
-      name: "middleware",
-      parameterList: [
-        {
-          name: "request",
-          document: "リクエスト",
-          typeExpr: expressModule.typeList.Request
-        },
-        {
-          name: "response",
-          document: "レスポンス",
-          typeExpr: expressModule.typeList.Response
-        }
-      ],
-      returnType: null,
-      statementList: [
-        expr.variableDefinition(
-          typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
-          expr.get(expr.get(expr.argument(0, 0), "headers"), "accept")
+  const middleware = generator.exportFunction({
+    name: "middleware",
+    parameterList: [
+      {
+        name: "request",
+        document: "リクエスト",
+        typeExpr: expressModule.typeList.Request
+      },
+      {
+        name: "response",
+        document: "レスポンス",
+        typeExpr: expressModule.typeList.Response
+      }
+    ],
+    returnType: null,
+    statementList: [
+      expr.variableDefinition(
+        typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
+        expr.get(expr.get(expr.argument(0, 0), "headers"), "accept")
+      ),
+      expr.ifStatement(
+        expr.logicalAnd(
+          expr.notEqual(expr.localVariable(0, 0), expr.undefinedLiteral),
+          expr.callMethod(expr.localVariable(0, 0), "includes", [
+            expr.literal("text/html")
+          ])
         ),
-        expr.ifStatement(
-          expr.logicalAnd(
-            expr.notEqual(expr.localVariable(0, 0), expr.undefinedLiteral),
-            expr.callMethod(expr.localVariable(0, 0), "includes", [
+        [
+          expr.evaluateExpr(
+            expr.callMethod(expr.argument(1, 1), "setHeader", [
+              expr.literal("content-type"),
               expr.literal("text/html")
             ])
           ),
-          [
-            expr.evaluateExpr(
-              expr.callMethod(expr.argument(1, 1), "setHeader", [
-                expr.literal("content-type"),
-                expr.literal("text/html")
-              ])
-            ),
-            expr.evaluateExpr(
-              expr.callMethod(expr.argument(1, 1), "send", [expr.literal(html)])
-            ),
-            expr.returnVoidStatement
-          ]
-        ),
-        expr.evaluateExpr(
-          expr.callMethod(expr.argument(0, 1), "send", [
-            expr.literal("APIのレスポンス")
-          ])
-        )
-      ],
-      document: "ミドルウェア"
-    });
-
-    const nodeJsCode: generator.Code = {
-      exportTypeAliasList: [],
-      exportFunctionList: [middleware],
-      statementList: []
-    };
-    fs.writeFile(
-      outFileName,
-      generator.toNodeJsCodeAsTypeScript(nodeJsCode),
-      () => {
-        resolve();
-      }
-    );
+          expr.evaluateExpr(
+            expr.callMethod(expr.argument(1, 1), "send", [expr.literal(html)])
+          ),
+          expr.returnVoidStatement
+        ]
+      ),
+      expr.evaluateExpr(
+        expr.callMethod(expr.argument(0, 1), "send", [
+          expr.literal("APIのレスポンス")
+        ])
+      )
+    ],
+    document: "ミドルウェア"
   });
 
-const browserCode = (
-  serverCodeAnalysisResult: type.ServerCodeAnalysisResult
-): string => {
+  const nodeJsCode: generator.Code = {
+    exportTypeAliasList: [],
+    exportFunctionList: [middleware],
+    statementList: []
+  };
+
+  return generator.toNodeJsCodeAsTypeScript(nodeJsCode);
+};
+
+const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
   const global = generator.createGlobalNamespace<[], ["document", "console"]>(
     [],
     ["document", "console"]
@@ -95,13 +80,11 @@ const browserCode = (
   const code: generator.Code = {
     exportFunctionList: [],
     exportTypeAliasList: [],
-    statementList: [
-      ...serverCodeAnalysisResult.functionMap.entries()
-    ].map(([name, func]) =>
+    statementList: functionList.map(func =>
       expr.evaluateExpr(
         expr.callMethod(
           expr.callMethod(document, "getElementById", [
-            expr.stringLiteral(requestButtonId(name))
+            expr.stringLiteral(requestButtonId(func.id))
           ]),
           "addEventListener",
           [
@@ -110,7 +93,9 @@ const browserCode = (
               [],
               [
                 expr.evaluateExpr(
-                  expr.callMethod(console, "log", [expr.stringLiteral(name)])
+                  expr.callMethod(console, "log", [
+                    expr.stringLiteral(func.name)
+                  ])
                 )
               ]
             )
@@ -119,15 +104,14 @@ const browserCode = (
       )
     )
   };
+
   return generator.toESModulesBrowserCode(code);
 };
 
-const createHtmlFromServerCode = (
-  serverCodeAnalysisResult: type.ServerCodeAnalysisResult
-): string => {
+const createHtmlFromServerCode = (api: type.Api): string => {
   return h.toString({
-    appName: serverCodeAnalysisResult.apiName + "API Document",
-    pageName: serverCodeAnalysisResult.apiName + "API Document",
+    appName: api.name + "API Document",
+    pageName: api.name + "API Document",
     style: `
     body {
       margin: 0;
@@ -156,7 +140,7 @@ const createHtmlFromServerCode = (
       padding: 0.5rem;
       background-color: rgba(100,255,2100, 0.1);
     }`,
-    script: browserCode(serverCodeAnalysisResult),
+    script: browserCode(api.functionList),
     iconPath: [],
     coverImageUrl: "",
     scriptUrlList: [],
@@ -168,100 +152,205 @@ const createHtmlFromServerCode = (
     twitterCard: h.TwitterCard.SummaryCard,
     language: h.Language.Japanese,
     body: [
-      h.h1(serverCodeAnalysisResult.apiName + "API Document"),
+      h.h1(api.name + "API Document"),
+      h.section([h.h2("Function"), functionListToHtml(api)]),
       h.section([
-        h.h2("Function"),
-        functionMapToHtml(serverCodeAnalysisResult.functionMap)
+        h.h2("RequestObject"),
+        requestObjectToHtml(api.requestObjectList)
       ]),
-      h.section([h.h2("Type"), typeMapToHtml(serverCodeAnalysisResult.typeMap)])
+      h.section([
+        h.h2("ResponseObject"),
+        responseObjectToHtml(api.responseObjectList)
+      ])
     ]
   });
 };
 
-const functionMapToHtml = (
-  functionMap: Map<string, type.FunctionData>
-): h.Element =>
+const functionListToHtml = (api: type.Api): h.Element =>
   h.div(
     null,
-    [...functionMap.entries()].map(
-      ([name, data]): h.Element =>
-        h.div("function-" + name, [
-          h.h3(name),
-          h.div(null, data.document),
+    api.functionList.map(
+      (func): h.Element =>
+        h.div("function-" + (func.id as string), [
+          h.h3(func.name),
+          h.div(null, func.id),
+          h.div(null, func.description),
           h.div(null, [
-            h.div(null, "parameter list"),
-            parameterListToHtml(name, data.parameters)
+            h.div(null, "request object type"),
+            h.div(
+              null,
+              type.getRequestObject(func.request, api.requestObjectList).name
+            )
           ]),
-          h.div(null, [h.div(null, "return type"), typeToHtml(data.return)]),
-          h.button(requestButtonId(name), "Request")
+          h.div(null, [
+            h.div(null, "response object type"),
+            h.div(
+              null,
+              type.getResponseObject(func.response, api.responseObjectList).name
+            )
+          ]),
+          h.button(requestButtonId(func.id), "Request")
         ])
     )
   );
 
-const parameterListToHtml = (
-  functionName: string,
-  parameterList: ReadonlyArray<[string, type.Type]>
+const requestTypeToHtml = (
+  type_: type.Type<type.RequestObjectId>,
+  requestObjectList: ReadonlyArray<type.RequestObject>,
+  responseObjectList: ReadonlyArray<type.ResponseObject>
+): h.Element => {
+  switch (type_._) {
+    case type.Type_.String:
+      return h.div(null, "string");
+    case type.Type_.Integer:
+      return h.div(null, "integer");
+    case type.Type_.DateTime:
+      return h.div(null, "dateTime");
+    case type.Type_.List:
+      return h.div(null, [
+        h.div(null, "list"),
+        requestTypeToHtml(type_.type, requestObjectList, responseObjectList)
+      ]);
+    case type.Type_.Id:
+      return h.div(
+        null,
+        type.getResponseObject(type_.responseObjectId, responseObjectList)
+          .name + "-id"
+      );
+    case type.Type_.Hash:
+      return h.div(
+        null,
+        type.getResponseObject(type_.responseObjectId, responseObjectList)
+          .name + "-hash"
+      );
+    case type.Type_.Object:
+      return h.div(
+        null,
+        type.getRequestObject(type_.objectId, requestObjectList).name
+      );
+  }
+};
+
+const responseTypeToHtml = (
+  type_: type.Type<type.ResponseObjectId>,
+  requestObjectList: ReadonlyArray<type.RequestObject>,
+  responseObjectList: ReadonlyArray<type.ResponseObject>
+): h.Element => {
+  switch (type_._) {
+    case type.Type_.String:
+      return h.div(null, "string");
+    case type.Type_.Integer:
+      return h.div(null, "integer");
+    case type.Type_.DateTime:
+      return h.div(null, "dateTime");
+    case type.Type_.List:
+      return h.div(null, [
+        h.div(null, "list"),
+        responseTypeToHtml(type_.type, requestObjectList, responseObjectList)
+      ]);
+    case type.Type_.Id:
+      return h.div(
+        null,
+        type.getResponseObject(type_.responseObjectId, responseObjectList)
+          .name + "-id"
+      );
+    case type.Type_.Hash:
+      return h.div(
+        null,
+        type.getResponseObject(type_.responseObjectId, responseObjectList)
+          .name + "-hash"
+      );
+    case type.Type_.Object:
+      return h.div(
+        null,
+        type.getResponseObject(type_.objectId, responseObjectList).name
+      );
+  }
+};
+
+const requestObjectToHtml = (
+  requestObjectList: ReadonlyArray<type.RequestObject>
 ): h.Element =>
   h.div(
     null,
-    parameterList.map(
-      ([parameterName, parameterType]): h.Element =>
+    requestObjectList.map(
+      (requestObject): h.Element =>
         h.div(null, [
-          h.div(null, parameterName),
-          typeToHtml(parameterType),
-          h.inputText(
-            "parameter-input-" + functionName + "-" + parameterName,
-            functionName + "-" + parameterName
+          h.h3(requestObject.name),
+          h.div(null, requestObject.id),
+          h.div(null, requestObject.description),
+          h.div(
+            null,
+            requestObject.patternList.map(
+              (pattern): h.Element =>
+                h.div(null, [
+                  h.div(null, pattern.name),
+                  h.div(null, pattern.id),
+                  h.div(
+                    null,
+                    pattern.memberList.map(member =>
+                      h.div(null, [
+                        h.div(null, member.name),
+                        h.div(null, member.id),
+                        h.div(null, member.description)
+                      ])
+                    )
+                  )
+                ])
+            )
           )
         ])
     )
   );
 
-const typeToHtml = (type_: type.Type): h.Element => {
-  switch (type_._) {
-    case type.Type_.Number:
-      return h.div(null, "number");
-    case type.Type_.String:
-      return h.div(null, "string");
-    case type.Type_.Boolean:
-      return h.div(null, "boolean");
-    case type.Type_.Null:
-      return h.div(null, "null");
-    case type.Type_.Undefined:
-      return h.div(null, "undefined");
-    case type.Type_.Object:
-      return h.div(
-        null,
-        type_.members.map(
-          ([propertyName, propertyType]): h.Element =>
-            h.div(null, [
-              h.div(null, propertyName),
-              h.div(null, propertyType.document),
-              typeToHtml(propertyType.type_)
-            ])
-        )
-      );
-    case type.Type_.Reference:
-      return h.div(null, `ref(${type_.name})`);
-    case type.Type_.Union:
-      return h.div(null, type_.typeList.map(typeToHtml));
-  }
-};
-
-const typeMapToHtml = (
-  typeMap: ReadonlyMap<string, type.TypeData>
+const responseObjectToHtml = (
+  responseObjectList: ReadonlyArray<type.ResponseObject>
 ): h.Element =>
   h.div(
     null,
-    [...typeMap.entries()].map(
-      ([typeName, typeData]): h.Element =>
-        h.div("type-" + typeName, [
-          h.h3(typeName),
-          h.div(null, typeData.document),
-          typeToHtml(typeData.type_)
+    responseObjectList.map(
+      (responseObject): h.Element =>
+        h.div("response-object-" + responseObject.name, [
+          h.h3(responseObject.name),
+          h.div(null, responseObject.description),
+          cacheTypeToElement(responseObject.cacheType),
+          h.div(
+            null,
+            responseObject.patternList.map(
+              (pattern): h.Element =>
+                h.div(null, [
+                  h.div(null, pattern.name),
+                  h.div(null, pattern.id),
+                  h.div(
+                    null,
+                    pattern.memberList.map(member =>
+                      h.div(null, [
+                        h.div(null, member.name),
+                        h.div(null, member.id),
+                        h.div(null, member.description)
+                      ])
+                    )
+                  )
+                ])
+            )
+          )
         ])
     )
   );
 
-const requestButtonId = (functionName: string): string =>
-  "request-" + functionName;
+const cacheTypeToElement = (cacheType: type.CacheType): h.Element => {
+  switch (cacheType._) {
+    case type.CacheType_.Never:
+      return h.div(null, "never");
+    case type.CacheType_.CacheById:
+      return h.div(
+        null,
+        "cacheById freshTime=" + cacheType.freshSeconds.toString() + "s"
+      );
+    case type.CacheType_.cacheByHash:
+      return h.div(null, "hash");
+  }
+};
+
+const requestButtonId = (functionId: type.FunctionId): string =>
+  "request-" + (functionId as string);

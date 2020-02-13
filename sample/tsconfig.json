@@ -9,5 +9,5 @@
     "newLine": "LF",
     "outDir": "../sampleDistribution"
   },
-  "exclude": ["expectedOutput.ts", "expectedInput.ts"]
+  "exclude": ["expectedOutput.ts", "expectedInput.ts", "use.ts"]
 }

@@ -1,12 +1,13 @@
 import * as express from "express";
 import * as api from "api";
+import * as crypto from "crypto";
 
 /**
  * expressでよく使われるミドルウェア
  * @param response レスポンス
  * @param request リクエスト
  */
-const middleware = (
+export const middleware = (
   request: express.Request,
   response: express.Response
 ): void => {
@@ -96,34 +97,79 @@ app.use(path, out.middleware);
   response.send("invalid function index. index=" + functionIndex);
 };
 
+const createRandomId = (): string => {
+  return crypto.randomBytes(16).toString("hex");
+};
+
+type UserId = string & { _580d8d6a54cf43e4452a0bba6694a4ed: never };
+
 /**
- * ドキュメント用のコード
+ * @id f4b44edab5e16b5f05786038d247ca2e
+ *
+ * ユーザー
+ */
+type User = {
+  _id: UserId;
+  /**
+   * @id bfb01ad37fee7368cd3f82f1536b8136
+   *
+   * 名前
+   */
+  name: string;
+  /**
+   * @id cffd0fe1c1421fb3e5a123a9b4e97ff4
+   *
+   * 年齢
+   */
+  age: number;
+  _readTime: Date;
+};
+
+type ImageId = string & { _4763daedf5827ab4a2e2ff064bd905eb: never };
+
+type Image = {
+  /**
+   * @id 32fd9e95b400a294393d5ccfb25c103d
+   */
+  data: Uint8Array;
+};
+
+/* =================================================
+ *           この下のコードを書き換えてください
+ * =================================================
  */
 
-export const idToCallOnHttpBinary = id => {
-  return id;
+/**
+ * @id e826237c70da15fd80cc03dfeb0985d4
+ *
+ * ユーザの情報を取得する
+ */
+
+const getUser = (request: UserId): Promise<User> => {
+  return {
+    _id: request,
+    name: "sample text",
+    age: 28,
+    _readTime: new Date()
+  };
 };
 
-export const callOnHttpBinaryToId = binary => {
-  return binary;
+/**
+ * @id e826237c70da15fd80cc03dfeb0985d4
+ *
+ * ユーザの情報を取得する
+ */
+
+const getImage = (request: UserId): Promise<User> => {
+  return {
+    _id: request,
+    name: "sample text",
+    age: 28,
+    _readTime: new Date()
+  };
 };
 
-export const getUser = id =>
-  new Promise((resolve, reject) => {
-    fetch(idToCallOnHttpBinary(id)).then(e => {
-      resolve(callOnHttpBinaryToId(e));
-    });
-  });
-
-(() => {
-  document
-    .getElementById("functionName--sendButton")
-    .addEventListener("click", () => {
-      getUser(
-        document.getElementById("functionName-argName").value,
-        document.getElementById("functionName-argName").value
-      ).then(result => {
-        document.getElementById("functionName--result").textContent = result;
-      });
-    });
-})();
+/** =======================================
+ *           書き換えるコード終了
+ * =======================================
+ */
