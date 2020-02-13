@@ -1,83 +1,102 @@
-import * as crypto from "crypto";
-
-export type Id = string & { _id: never };
-
-export const idFromString = (idAsString: string): Id => {
-  if (idAsString.length !== 32) {
-    throw new Error("id must be length = 32");
-  }
-  return idAsString as Id;
+export type Api = {
+  name: string;
+  requestObjectList: ReadonlyArray<RequestObject>;
+  responseObjectList: ReadonlyArray<ResponseObject>;
+  functionList: ReadonlyArray<ApiFunction>;
 };
 
-export const createRandomId = (): Id => {
-  return crypto.randomBytes(16).toString("hex") as Id;
+export type FunctionId = string & { _functionId: never };
+
+export type RequestObjectId = string & { _requestObjectId: never };
+
+export type ResponseObjectId = string & { _responseObjectId: never };
+
+export type PatternId = string & { _patternId: never };
+
+export type MemberId = string & { _memberId: never };
+
+export const functionIdFromString = (idAsString: string): FunctionId =>
+  idFromString(idAsString) as FunctionId;
+
+export const requestObjectIdFromString = (
+  idAsString: string
+): RequestObjectId => idFromString(idAsString) as RequestObjectId;
+
+export const responseObjectIdFromString = (
+  idAsString: string
+): ResponseObjectId => idFromString(idAsString) as ResponseObjectId;
+
+export const patternIdFromString = (idAsString: string): PatternId =>
+  idFromString(idAsString) as PatternId;
+
+export const memberIdFromString = (idAsString: string): MemberId =>
+  idFromString(idAsString) as MemberId;
+
+const idFromString = (idAsString: string): string => {
+  if (idAsString.length !== 32) {
+    throw new Error("id length must be 32 id=" + idAsString);
+  }
+  if (idAsString.match(/[^0123456789abcdef]/) !== null) {
+    throw new Error("id contains not 0123456789abcdef id=" + idAsString);
+  }
+  return idAsString;
 };
 
 export type ApiFunction = {
-  id: Id;
+  id: FunctionId;
   name: string;
   description: string;
-  request: RequestObject;
-  response: ResponseObject;
+  request: RequestObjectId;
+  response: ResponseObjectId;
 };
 
-export type RequestType =
-  | {
-      _: Type_.String;
-    }
-  | {
-      _: Type_.Integer;
-    }
-  | { _: Type_.Id; typeId: Id }
-  | { _: Type_.List; type: RequestType }
-  | {
-      _: Type_.Object;
-      requestObject: RequestObject;
-    };
-
 export type RequestObject = {
-  id: Id;
+  id: RequestObjectId;
   name: string;
   description: string;
   patternList: ReadonlyArray<{
-    id: Id;
+    id: PatternId;
     name: string;
-    member: ReadonlyArray<{
-      id: Id;
+    memberList: ReadonlyArray<{
+      id: MemberId;
       name: string;
       description: string;
-      type: RequestType;
+      type: Type<RequestObjectId>;
     }>;
   }>;
 };
 
-export type ResponseType =
+export type Type<id extends RequestObjectId | ResponseObjectId> =
   | {
       _: Type_.String;
     }
   | {
       _: Type_.Integer;
     }
-  | { _: Type_.Id; typeId: Id }
-  | { _: Type_.List; type: ResponseType }
+  | {
+      _: Type_.DateTime;
+    }
+  | { _: Type_.List; type: Type<id> }
+  | { _: Type_.Id; responseObjectId: ResponseObjectId }
+  | { _: Type_.Hash; responseObjectId: ResponseObjectId }
   | {
       _: Type_.Object;
-      responseObject: ResponseObject;
+      objectId: id;
     };
 
 export type ResponseObject = {
-  id: Id;
+  id: ResponseObjectId;
   name: string;
   description: string;
   cacheType: CacheType;
   patternList: ReadonlyArray<{
-    id: Id;
+    id: PatternId;
     name: string;
-    member: ReadonlyArray<{
-      id: Id;
+    memberList: ReadonlyArray<{
+      id: MemberId;
       name: string;
       description: string;
-      type: RequestType;
+      type: Type<ResponseObjectId>;
     }>;
   }>;
 };
@@ -85,36 +104,65 @@ export type ResponseObject = {
 const enum Type_ {
   String,
   Integer,
+  DateTime,
   List,
   Id,
+  Hash,
   Object
 }
 
-export const stringType: RequestType & ResponseType = {
+export const stringType: Type<RequestObjectId & ResponseObjectId> = {
   _: Type_.String
 };
 
-export const integerType: RequestType & ResponseType = {
+export const integerType: Type<RequestObjectId & ResponseObjectId> = {
   _: Type_.Integer
 };
 
-export const idType = (typeId: Id): RequestType & ResponseType => ({
+export const dateTimeType: Type<RequestObjectId & ResponseObjectId> = {
+  _: Type_.DateTime
+};
+
+export const requestListType = (
+  requestType: Type<RequestObjectId>
+): Type<RequestObjectId> => ({
+  _: Type_.List,
+  type: requestType
+});
+
+export const responseListType = (
+  responseType: Type<ResponseObjectId>
+): Type<ResponseObjectId> => ({
+  _: Type_.List,
+  type: responseType
+});
+
+export const idType = (
+  responseObjectId: ResponseObjectId
+): Type<RequestObjectId & ResponseObjectId> => ({
   _: Type_.Id,
-  typeId
+  responseObjectId
+});
+
+export const hashType = (
+  responseObjectId: ResponseObjectId
+): Type<RequestObjectId & ResponseObjectId> => ({
+  _: Type_.Hash,
+  responseObjectId
 });
 
 export const requestObjectType = (
-  requestObject: RequestObject
-): RequestType => ({
+  objectId: RequestObjectId
+): Type<RequestObjectId> => ({
   _: Type_.Object,
-  requestObject
+  objectId
 });
 
 export const responseObjectType = (
-  responseObject: ResponseObject
-): ResponseType => ({
+  objectId: ResponseObjectId
+): Type<ResponseObjectId> => ({
   _: Type_.Object,
-  responseObject
+  objectId
 });
 
 export type CacheType =

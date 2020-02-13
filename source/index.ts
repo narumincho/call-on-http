@@ -18,13 +18,12 @@ export { type };
  */
 
 export const generateServerCodeAndUpdateTemplate = (
-  apiName: string,
-  functionList: ReadonlyArray<type.ApiFunction>,
+  api: type.Api,
   serverCodePath: string,
   option: { allowBreakingChange: boolean }
 ): Promise<void> =>
   new Promise((resolve, reject) => {
-    fs.writeFile(serverCodePath, emitter.emit(apiName, functionList), () => {
+    fs.writeFile(serverCodePath, emitter.emit(api), () => {
       resolve();
     });
   });

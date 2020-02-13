@@ -3,11 +3,8 @@ import * as generator from "js-ts-code-generator";
 import { expr, typeExpr } from "js-ts-code-generator";
 import * as h from "@narumincho/html";
 
-export const emit = (
-  apiName: string,
-  functionList: ReadonlyArray<type.ApiFunction>
-): string => {
-  const html = createHtmlFromServerCode(apiName, functionList);
+export const emit = (api: type.Api): string => {
+  const html = createHtmlFromServerCode(api);
 
   const expressModule = generator.createImportNodeModule<
     ["Request", "Response"],
@@ -111,13 +108,10 @@ const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
   return generator.toESModulesBrowserCode(code);
 };
 
-const createHtmlFromServerCode = (
-  apiName: string,
-  functionList: ReadonlyArray<type.ApiFunction>
-): string => {
+const createHtmlFromServerCode = (api: type.Api): string => {
   return h.toString({
-    appName: apiName + "API Document",
-    pageName: apiName + "API Document",
+    appName: api.name + "API Document",
+    pageName: api.name + "API Document",
     style: `
     body {
       margin: 0;
@@ -146,7 +140,7 @@ const createHtmlFromServerCode = (
       padding: 0.5rem;
       background-color: rgba(100,255,2100, 0.1);
     }`,
-    script: browserCode(functionList),
+    script: browserCode(api.functionList),
     iconPath: [],
     coverImageUrl: "",
     scriptUrlList: [],
@@ -158,29 +152,32 @@ const createHtmlFromServerCode = (
     twitterCard: h.TwitterCard.SummaryCard,
     language: h.Language.Japanese,
     body: [
-      h.h1(apiName + "API Document"),
-      h.section([h.h2("Function"), functionMapToHtml(functionList)])
-      // h.section([h.h2("Type"), typeMapToHtml(functionList.typeMap)])
+      h.h1(api.name + "API Document"),
+      h.section([h.h2("Function"), functionListToHtml(api)]),
+      h.section([
+        h.h2("RequestObject"),
+        requestObjectToHtml(api.requestObjectList)
+      ]),
+      h.section([
+        h.h2("ResponseObject"),
+        requestObjectToHtml(api.requestObjectList)
+      ])
     ]
   });
 };
 
-const functionMapToHtml = (
-  functionList: ReadonlyArray<type.ApiFunction>
-): h.Element =>
+const functionListToHtml = (functionList: type.Api): h.Element =>
   h.div(
     null,
     functionList.map(
       (func): h.Element =>
-        h.div("function-" + func.id, [
+        h.div("function-" + (func.id as string), [
           h.h3(func.name),
+          h.div(null, func.id),
           h.div(null, func.description),
-          h.div(null, [
-            h.div(null, "parameter list"),
-            parameterListToHtml(name, data.parameters)
-          ]),
-          h.div(null, [h.div(null, "return type"), typeToHtml(data.return)]),
-          h.button(requestButtonId(name), "Request")
+          h.div(null, [h.div(null, "request object type")]),
+          h.div(null, [h.div(null, "response object type")]),
+          h.button(requestButtonId(func.name), "Request")
         ])
     )
   );
@@ -204,7 +201,7 @@ const parameterListToHtml = (
     )
   );
 
-const typeToHtml = (type_: type.RequestType): h.Element => {
+const typeToHtml = (type_: type.T): h.Element => {
   switch (type_._) {
     case type.Type_.Number:
       return h.div(null, "number");
@@ -235,14 +232,49 @@ const typeToHtml = (type_: type.RequestType): h.Element => {
   }
 };
 
-const typeMapToHtml = (
-  typeMap: ReadonlyMap<string, type.TypeData>
+const requestObjectToHtml = (
+  requestObjectList: ReadonlyArray<type.RequestObject>
 ): h.Element =>
   h.div(
     null,
-    [...typeMap.entries()].map(
-      ([typeName, typeData]): h.Element =>
-        h.div("type-" + typeName, [
+    requestObjectList.map(
+      (requestObject): h.Element =>
+        h.div(null, [
+          h.h3(requestObject.name),
+          h.div(null, requestObject.id),
+          h.div(null, requestObject.description),
+          h.div(
+            null,
+            requestObject.patternList.map(
+              (pattern): h.Element =>
+                h.div(null, [
+                  h.div(null, pattern.name),
+                  h.div(null, pattern.id),
+                  h.div(
+                    null,
+                    pattern.memberList.map(member =>
+                      h.div(null, [
+                        h.div(null, member.name),
+                        h.div(null, member.id),
+                        h.div(null, member.description)
+                      ])
+                    )
+                  )
+                ])
+            )
+          )
+        ])
+    )
+  );
+
+const responseObjectToHtml = (
+  responseObjectList: ReadonlyArray<type.ResponseObject>
+): h.Element =>
+  h.div(
+    null,
+    responseObjectList.map(
+      (responseObject): h.Element =>
+        h.div("response-object-" + typeName, [
           h.h3(typeName),
           h.div(null, typeData.document),
           typeToHtml(typeData.type_)
@@ -250,5 +282,5 @@ const typeMapToHtml = (
     )
   );
 
-const requestButtonId = (functionName: string): string =>
-  "request-" + functionName;
+const requestButtonId = (functionId: type.FunctionId): string =>
+  "request-" + (functionId as string);
