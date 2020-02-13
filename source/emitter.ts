@@ -6,6 +6,11 @@ import * as h from "@narumincho/html";
 export const emit = (api: type.Api): string => {
   const html = createHtmlFromServerCode(api);
 
+  const global = generator.createGlobalNamespace<
+    ["Buffer", "Uint8Array"],
+    ["Uint8Array"]
+  >(["Buffer", "Uint8Array"], ["Uint8Array"]);
+
   const expressModule = generator.createImportNodeModule<
     ["Request", "Response"],
     []
@@ -46,15 +51,46 @@ export const emit = (api: type.Api): string => {
             ])
           ),
           expr.evaluateExpr(
-            expr.callMethod(expr.argument(1, 1), "send", [expr.literal(html)])
+            expr.callMethod(expr.argument(1, 1), "send", [
+              expr.stringLiteral(html)
+            ])
           ),
           expr.returnVoidStatement
         ]
       ),
-      expr.evaluateExpr(
-        expr.callMethod(expr.argument(0, 1), "send", [
-          expr.literal("APIのレスポンス")
-        ])
+      expr.variableDefinition(
+        typeExpr.union([typeExpr.typeUndefined, global.typeList.Buffer]),
+        expr.get(expr.argument(0, 0), "body")
+      ),
+      expr.ifStatement(
+        expr.equal(expr.localVariable(0, 1), expr.undefinedLiteral),
+        [
+          expr.throwError(`use binary body parser. in middleware app.
+
+const app = express();
+
+app.use(express.raw());
+app.use(path, out.middleware);`)
+        ]
+      ),
+      expr.variableDefinition(
+        global.typeList.Uint8Array,
+        expr.newExpr(global.variableList.Uint8Array, [expr.localVariable(0, 1)])
+      ),
+      ...api.functionList.map(apiFunction =>
+        expr.ifStatement(
+          uint8ArrayStartWithFunctionId(
+            apiFunction.id,
+            expr.localVariable(0, 2)
+          ),
+          [
+            expr.evaluateExpr(
+              expr.callMethod(expr.argument(1, 1), "send", [
+                expr.stringLiteral(apiFunction.name)
+              ])
+            )
+          ]
+        )
       )
     ],
     document: "ミドルウェア"
@@ -67,6 +103,44 @@ export const emit = (api: type.Api): string => {
   };
 
   return generator.toNodeJsCodeAsTypeScript(nodeJsCode);
+};
+
+const uint8ArrayStartWithFunctionId = (
+  functionId: type.FunctionId,
+  uint8ArrayExpr: generator.expr.Expr
+): generator.expr.Expr => {
+  const idAsNumberArray = idToArray(functionId);
+  let expr = generator.expr.logicalAnd(
+    generator.expr.equal(
+      generator.expr.getByExpr(uint8ArrayExpr, generator.expr.numberLiteral(0)),
+      generator.expr.numberLiteral(idAsNumberArray[0])
+    ),
+    generator.expr.equal(
+      generator.expr.getByExpr(uint8ArrayExpr, generator.expr.numberLiteral(1)),
+      generator.expr.numberLiteral(idAsNumberArray[1])
+    )
+  );
+  for (let i = 2; i < 16; i++) {
+    expr = generator.expr.logicalAnd(
+      expr,
+      generator.expr.equal(
+        generator.expr.getByExpr(
+          uint8ArrayExpr,
+          generator.expr.numberLiteral(i)
+        ),
+        generator.expr.numberLiteral(idAsNumberArray[i])
+      )
+    );
+  }
+  return expr;
+};
+
+const idToArray = (id: string): ReadonlyArray<number> => {
+  const binary = [];
+  for (let i = 0; i < 16; i++) {
+    binary.push(Number.parseInt(id.slice(i * 2, i * 2 + 2), 16));
+  }
+  return binary;
 };
 
 const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
