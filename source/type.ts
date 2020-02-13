@@ -46,6 +46,7 @@ export type ApiFunction = {
   id: FunctionId;
   name: string;
   description: string;
+  cacheByRequest: boolean;
   request: RequestObjectId;
   response: ResponseObjectId;
 };
@@ -101,7 +102,7 @@ export type ResponseObject = {
   }>;
 };
 
-const enum Type_ {
+export const enum Type_ {
   String,
   Integer,
   DateTime,
@@ -177,7 +178,7 @@ export type CacheType =
       _: CacheType_.cacheByHash;
     };
 
-const enum CacheType_ {
+export const enum CacheType_ {
   Never,
   CacheById,
   cacheByHash
@@ -194,4 +195,32 @@ export const cacheById = (updateSeconds: number): CacheType => ({
 
 export const cacheByHash: CacheType = {
   _: CacheType_.cacheByHash
+};
+
+export const getResponseObject = (
+  id: ResponseObjectId,
+  list: ReadonlyArray<ResponseObject>
+): ResponseObject => {
+  const result = list.find(responseObject => responseObject.id === id);
+  if (result === undefined) {
+    throw new Error(
+      "存在しないResponseObjectIdが使われている responseObjectId=" +
+        (id as string)
+    );
+  }
+  return result;
+};
+
+export const getRequestObject = (
+  id: RequestObjectId,
+  list: ReadonlyArray<RequestObject>
+): RequestObject => {
+  const result = list.find(requestObject => requestObject.id === id);
+  if (result === undefined) {
+    throw new Error(
+      "存在しないRequestObjectIdが使われている requestObjectId=" +
+        (id as string)
+    );
+  }
+  return result;
 };

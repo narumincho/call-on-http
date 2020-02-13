@@ -92,6 +92,7 @@ callOnHttp.generateServerCodeAndUpdateTemplate(
           "b2c29cb62c4081e9e6613146f7ae15dc"
         ),
         name: "createUser",
+        cacheByRequest: false,
         description: "ユーザーを作成する",
         request: createUserRequestObjectId,
         response: responseUserTypeId

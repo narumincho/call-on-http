@@ -160,75 +160,111 @@ const createHtmlFromServerCode = (api: type.Api): string => {
       ]),
       h.section([
         h.h2("ResponseObject"),
-        requestObjectToHtml(api.requestObjectList)
+        responseObjectToHtml(api.responseObjectList)
       ])
     ]
   });
 };
 
-const functionListToHtml = (functionList: type.Api): h.Element =>
+const functionListToHtml = (api: type.Api): h.Element =>
   h.div(
     null,
-    functionList.map(
+    api.functionList.map(
       (func): h.Element =>
         h.div("function-" + (func.id as string), [
           h.h3(func.name),
           h.div(null, func.id),
           h.div(null, func.description),
-          h.div(null, [h.div(null, "request object type")]),
-          h.div(null, [h.div(null, "response object type")]),
-          h.button(requestButtonId(func.name), "Request")
+          h.div(null, [
+            h.div(null, "request object type"),
+            h.div(
+              null,
+              type.getRequestObject(func.request, api.requestObjectList).name
+            )
+          ]),
+          h.div(null, [
+            h.div(null, "response object type"),
+            h.div(
+              null,
+              type.getResponseObject(func.response, api.responseObjectList).name
+            )
+          ]),
+          h.button(requestButtonId(func.id), "Request")
         ])
     )
   );
 
-const parameterListToHtml = (
-  functionName: string,
-  parameterList: ReadonlyArray<[string, type.RequestType]>
-): h.Element =>
-  h.div(
-    null,
-    parameterList.map(
-      ([parameterName, parameterType]): h.Element =>
-        h.div(null, [
-          h.div(null, parameterName),
-          typeToHtml(parameterType),
-          h.inputText(
-            "parameter-input-" + functionName + "-" + parameterName,
-            functionName + "-" + parameterName
-          )
-        ])
-    )
-  );
-
-const typeToHtml = (type_: type.T): h.Element => {
+const requestTypeToHtml = (
+  type_: type.Type<type.RequestObjectId>,
+  requestObjectList: ReadonlyArray<type.RequestObject>,
+  responseObjectList: ReadonlyArray<type.ResponseObject>
+): h.Element => {
   switch (type_._) {
-    case type.Type_.Number:
-      return h.div(null, "number");
     case type.Type_.String:
       return h.div(null, "string");
-    case type.Type_.Boolean:
-      return h.div(null, "boolean");
-    case type.Type_.Null:
-      return h.div(null, "null");
-    case type.Type_.Undefined:
-      return h.div(null, "undefined");
+    case type.Type_.Integer:
+      return h.div(null, "integer");
+    case type.Type_.DateTime:
+      return h.div(null, "dateTime");
+    case type.Type_.List:
+      return h.div(null, [
+        h.div(null, "list"),
+        requestTypeToHtml(type_.type, requestObjectList, responseObjectList)
+      ]);
+    case type.Type_.Id:
+      return h.div(
+        null,
+        type.getResponseObject(type_.responseObjectId, responseObjectList)
+          .name + "-id"
+      );
+    case type.Type_.Hash:
+      return h.div(
+        null,
+        type.getResponseObject(type_.responseObjectId, responseObjectList)
+          .name + "-hash"
+      );
     case type.Type_.Object:
       return h.div(
         null,
-        type_.members.map(
-          ([propertyName, propertyType]): h.Element =>
-            h.div(null, [
-              h.div(null, propertyName),
-              h.div(null, propertyType.document),
-              typeToHtml(propertyType.type_)
-            ])
-        )
+        type.getRequestObject(type_.objectId, requestObjectList).name
       );
-    case type.Type_.Reference:
-      return h.div(null, `ref(${type_.name})`);
-    case type.Type_.Union:
-      return h.div(null, type_.typeList.map(typeToHtml));
+  }
+};
+
+const responseTypeToHtml = (
+  type_: type.Type<type.ResponseObjectId>,
+  requestObjectList: ReadonlyArray<type.RequestObject>,
+  responseObjectList: ReadonlyArray<type.ResponseObject>
+): h.Element => {
+  switch (type_._) {
+    case type.Type_.String:
+      return h.div(null, "string");
+    case type.Type_.Integer:
+      return h.div(null, "integer");
+    case type.Type_.DateTime:
+      return h.div(null, "dateTime");
+    case type.Type_.List:
+      return h.div(null, [
+        h.div(null, "list"),
+        responseTypeToHtml(type_.type, requestObjectList, responseObjectList)
+      ]);
+    case type.Type_.Id:
+      return h.div(
+        null,
+        type.getResponseObject(type_.responseObjectId, responseObjectList)
+          .name + "-id"
+      );
+    case type.Type_.Hash:
+      return h.div(
+        null,
+        type.getResponseObject(type_.responseObjectId, responseObjectList)
+          .name + "-hash"
+      );
+    case type.Type_.Object:
+      return h.div(
+        null,
+        type.getResponseObject(type_.objectId, responseObjectList).name
+      );
   }
 };
 
@@ -274,13 +310,47 @@ const responseObjectToHtml = (
     null,
     responseObjectList.map(
       (responseObject): h.Element =>
-        h.div("response-object-" + typeName, [
-          h.h3(typeName),
-          h.div(null, typeData.document),
-          typeToHtml(typeData.type_)
+        h.div("response-object-" + responseObject.name, [
+          h.h3(responseObject.name),
+          h.div(null, responseObject.description),
+          cacheTypeToElement(responseObject.cacheType),
+          h.div(
+            null,
+            responseObject.patternList.map(
+              (pattern): h.Element =>
+                h.div(null, [
+                  h.div(null, pattern.name),
+                  h.div(null, pattern.id),
+                  h.div(
+                    null,
+                    pattern.memberList.map(member =>
+                      h.div(null, [
+                        h.div(null, member.name),
+                        h.div(null, member.id),
+                        h.div(null, member.description)
+                      ])
+                    )
+                  )
+                ])
+            )
+          )
         ])
     )
   );
+
+const cacheTypeToElement = (cacheType: type.CacheType): h.Element => {
+  switch (cacheType._) {
+    case type.CacheType_.Never:
+      return h.div(null, "never");
+    case type.CacheType_.CacheById:
+      return h.div(
+        null,
+        "cacheById freshTime=" + cacheType.freshSeconds.toString() + "s"
+      );
+    case type.CacheType_.cacheByHash:
+      return h.div(null, "hash");
+  }
+};
 
 const requestButtonId = (functionId: type.FunctionId): string =>
   "request-" + (functionId as string);
