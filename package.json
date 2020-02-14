@@ -20,7 +20,7 @@
   "dependencies": {
     "@narumincho/html": "0.0.4",
     "express": "^4.17.1",
-    "js-ts-code-generator": "0.1.1"
+    "js-ts-code-generator": "0.1.2"
   },
   "devDependencies": {
     "typescript": "^3.7.5",
