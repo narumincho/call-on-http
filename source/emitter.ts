@@ -88,7 +88,7 @@ app.use(path, out.middleware);`)
           [
             expr.evaluateExpr(
               expr.callMethod(expr.argument(1, 1), "send", [
-                expr.stringLiteral(apiFunction.name)
+                expr.call(expr.globalVariable(apiFunction.name), [])
               ])
             )
           ]
@@ -98,13 +98,44 @@ app.use(path, out.middleware);`)
     document: "ミドルウェア"
   });
 
+  const requestTypeAliasListAndMaybeConstEnumList = api.requestObjectList.map(
+    requestObjectType => binary.requestObjectTypeToTypeAlias(requestObjectType)
+  );
+
+  const serverCodeTemplate: ReadonlyArray<generator.ExportFunction> = api.functionList.map(
+    apiFunction =>
+      generator.exportFunction({
+        name: apiFunction.name,
+        document:
+          "@id " + (apiFunction.id as string) + "\n" + apiFunction.description,
+        parameterList: [],
+        returnType: generator.typeExpr.typeString,
+        statementList: [
+          expr.returnStatement(
+            expr.stringLiteral(
+              apiFunction.name + "@" + (apiFunction.id as string)
+            )
+          )
+        ]
+      })
+  );
+  const exportConstEnumList: Array<generator.ExportConstEnum> = [];
+  for (const { exportConstEnum } of requestTypeAliasListAndMaybeConstEnumList) {
+    if (exportConstEnum !== null) {
+      exportConstEnumList.push(exportConstEnum);
+    }
+  }
+
   const nodeJsCode: generator.Code = {
-    exportTypeAliasList: [],
-    exportFunctionList: [middleware],
+    exportTypeAliasList: requestTypeAliasListAndMaybeConstEnumList.map(
+      typeDefinition => typeDefinition.typeAlias
+    ),
+    exportConstEnumList,
+    exportFunctionList: [middleware].concat(serverCodeTemplate),
     statementList: []
   };
 
-  return generator.toNodeJsCodeAsTypeScript(nodeJsCode);
+  return generator.toNodeJsOrBrowserCodeAsTypeScript(nodeJsCode);
 };
 
 const uint8ArrayStartWithFunctionId = (
@@ -147,6 +178,7 @@ const createBrowserCode = (
   const code: generator.Code = {
     exportFunctionList: browserFunctionList,
     exportTypeAliasList: [],
+    exportConstEnumList: [],
     statementList: api.functionList.map((func, index) =>
       expr.evaluateExpr(
         expr.callMethod(
@@ -252,8 +284,9 @@ const createHtmlFromServerCode = (api: type.Api): string => {
           attributes: new Map(),
           children: {
             _: h.HtmlElementChildren_.Text,
-            text: generator.toNodeJsCodeAsTypeScript({
+            text: generator.toNodeJsOrBrowserCodeAsTypeScript({
               exportFunctionList: browserFunctionList,
+              exportConstEnumList: [],
               exportTypeAliasList: [],
               statementList: []
             })
@@ -269,6 +302,7 @@ const createHtmlFromServerCode = (api: type.Api): string => {
             _: h.HtmlElementChildren_.Text,
             text: generator.toESModulesBrowserCode({
               exportFunctionList: browserFunctionList,
+              exportConstEnumList: [],
               exportTypeAliasList: [],
               statementList: []
             })
