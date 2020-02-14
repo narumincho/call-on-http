@@ -2,6 +2,8 @@ import * as type from "./type";
 import * as generator from "js-ts-code-generator";
 import { expr, typeExpr } from "js-ts-code-generator";
 import * as h from "@narumincho/html";
+import * as browserCode from "./browserCode";
+import * as binary from "./binary";
 
 export const emit = (api: type.Api): string => {
   const html = createHtmlFromServerCode(api);
@@ -109,7 +111,7 @@ const uint8ArrayStartWithFunctionId = (
   functionId: type.FunctionId,
   uint8ArrayExpr: generator.expr.Expr
 ): generator.expr.Expr => {
-  const idAsNumberArray = idToArray(functionId);
+  const idAsNumberArray = binary.idToArray(functionId);
   let expr = generator.expr.logicalAnd(
     generator.expr.equal(
       generator.expr.getByExpr(uint8ArrayExpr, generator.expr.numberLiteral(0)),
@@ -135,100 +137,17 @@ const uint8ArrayStartWithFunctionId = (
   return expr;
 };
 
-const idToArray = (id: string): ReadonlyArray<number> => {
-  const binary = [];
-  for (let i = 0; i < 16; i++) {
-    binary.push(Number.parseInt(id.slice(i * 2, i * 2 + 2), 16));
-  }
-  return binary;
-};
-
-const fetchWithBody = (array: ReadonlyArray<number>): generator.expr.Expr => {
-  const fetch = expr.globalVariable("fetch");
-  const location = expr.globalVariable("location");
-  const uint8Array = expr.globalVariable("Uint8Array");
-
-  return expr.call(fetch, [
-    expr.get(location, "href"),
-    expr.objectLiteral(
-      new Map([
-        ["method", expr.stringLiteral("POST")],
-        [
-          "headers",
-          expr.arrayLiteral([
-            expr.arrayLiteral([
-              expr.stringLiteral("content-type"),
-              expr.stringLiteral("application/octet-stream")
-            ])
-          ])
-        ],
-        [
-          "body",
-          expr.newExpr(uint8Array, [
-            expr.arrayLiteral(array.map(expr.numberLiteral))
-          ])
-        ]
-      ])
-    )
-  ]);
-};
-
-const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
+const createBrowserCode = (
+  api: type.Api,
+  browserFunctionList: ReadonlyArray<generator.ExportFunction>
+): string => {
   const document = expr.globalVariable("document");
   const globalConsole = expr.globalVariable("console");
-  const responseType = typeExpr.globalType("Response");
-
-  const httpRequestFunction = (
-    functionName: string,
-    functionId: type.FunctionId
-  ): generator.ExportFunction => ({
-    name: functionName,
-    document: "",
-    parameterList: [
-      {
-        name: "callback",
-        document: "",
-        typeExpr: typeExpr.functionReturnVoid([])
-      }
-    ],
-    returnType: null,
-    statementList: [
-      expr.evaluateExpr(
-        expr.callMethod(
-          expr.callMethod(fetchWithBody(idToArray(functionId)), "then", [
-            expr.lambdaReturnVoid(
-              [responseType],
-              [
-                expr.returnStatement(
-                  expr.callMethod(expr.argument(0, 0), "text", [])
-                )
-              ]
-            )
-          ]),
-          "then",
-          [
-            expr.lambdaReturnVoid(
-              [typeExpr.typeString],
-              [
-                expr.evaluateExpr(
-                  expr.callMethod(globalConsole, "log", [expr.argument(0, 0)])
-                )
-              ]
-            )
-          ]
-        )
-      )
-    ]
-  });
-
-  const exportFunctionList: ReadonlyArray<generator.ExportFunction> = functionList.map(
-    func => httpRequestFunction(func.name, func.id)
-  );
 
   const code: generator.Code = {
-    exportFunctionList,
+    exportFunctionList: browserFunctionList,
     exportTypeAliasList: [],
-    statementList: functionList.map((func, index) =>
+    statementList: api.functionList.map((func, index) =>
       expr.evaluateExpr(
         expr.callMethod(
           expr.callMethod(document, "getElementById", [
@@ -239,7 +158,22 @@ const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
             expr.stringLiteral("click"),
             expr.lambdaReturnVoid(
               [],
-              [expr.evaluateExpr(expr.call(expr.localVariable(2, index), []))]
+              [
+                expr.evaluateExpr(
+                  expr.call(expr.localVariable(2, index), [
+                    expr.lambdaReturnVoid(
+                      [typeExpr.typeString],
+                      [
+                        expr.evaluateExpr(
+                          expr.callMethod(globalConsole, "log", [
+                            expr.argument(0, 0)
+                          ])
+                        )
+                      ]
+                    )
+                  ])
+                )
+              ]
             )
           ]
         )
@@ -250,6 +184,7 @@ const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
 };
 
 const createHtmlFromServerCode = (api: type.Api): string => {
+  const browserFunctionList = browserCode.create(api);
   return h.toString({
     appName: api.name + "API Document",
     pageName: api.name + "API Document",
@@ -280,8 +215,15 @@ const createHtmlFromServerCode = (api: type.Api): string => {
     div {
       padding: 0.5rem;
       background-color: rgba(100,255,2100, 0.1);
-    }`,
-    script: browserCode(api.functionList),
+      overflow-wrap: break-word;
+    }
+    
+    code {
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+    }
+    `,
+    script: createBrowserCode(api, browserFunctionList),
     iconPath: [],
     coverImageUrl: "",
     scriptUrlList: [],
@@ -296,12 +238,42 @@ const createHtmlFromServerCode = (api: type.Api): string => {
       h.h1(api.name + "API Document"),
       h.section([h.h2("Function"), functionListToHtml(api)]),
       h.section([
-        h.h2("RequestObject"),
+        h.h2("Request Object"),
         requestObjectToHtml(api.requestObjectList)
       ]),
       h.section([
-        h.h2("ResponseObject"),
+        h.h2("Response Object"),
         responseObjectToHtml(api.responseObjectList)
+      ]),
+      h.section([
+        h.h2("Browser Code TypeScript"),
+        {
+          name: "code",
+          attributes: new Map(),
+          children: {
+            _: h.HtmlElementChildren_.Text,
+            text: generator.toNodeJsCodeAsTypeScript({
+              exportFunctionList: browserFunctionList,
+              exportTypeAliasList: [],
+              statementList: []
+            })
+          }
+        }
+      ]),
+      h.section([
+        h.h2("Browser Code JavaScript"),
+        {
+          name: "code",
+          attributes: new Map(),
+          children: {
+            _: h.HtmlElementChildren_.Text,
+            text: generator.toESModulesBrowserCode({
+              exportFunctionList: browserFunctionList,
+              exportTypeAliasList: [],
+              statementList: []
+            })
+          }
+        }
       ])
     ]
   });
