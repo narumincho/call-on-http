@@ -143,18 +143,92 @@ const idToArray = (id: string): ReadonlyArray<number> => {
   return binary;
 };
 
+const fetchWithBody = (array: ReadonlyArray<number>): generator.expr.Expr => {
+  const fetch = expr.globalVariable("fetch");
+  const location = expr.globalVariable("location");
+  const uint8Array = expr.globalVariable("Uint8Array");
+
+  return expr.call(fetch, [
+    expr.get(location, "href"),
+    expr.objectLiteral(
+      new Map([
+        ["method", expr.stringLiteral("POST")],
+        [
+          "headers",
+          expr.arrayLiteral([
+            expr.arrayLiteral([
+              expr.stringLiteral("content-type"),
+              expr.stringLiteral("application/octet-stream")
+            ])
+          ])
+        ],
+        [
+          "body",
+          expr.newExpr(uint8Array, [
+            expr.arrayLiteral(array.map(expr.numberLiteral))
+          ])
+        ]
+      ])
+    )
+  ]);
+};
+
 const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
-  const global = generator.createGlobalNamespace<[], ["document", "console"]>(
-    [],
-    ["document", "console"]
+  const document = expr.globalVariable("document");
+  const globalConsole = expr.globalVariable("console");
+  const responseType = typeExpr.globalType("Response");
+
+  const httpRequestFunction = (
+    functionName: string,
+    functionId: type.FunctionId
+  ): generator.ExportFunction => ({
+    name: functionName,
+    document: "",
+    parameterList: [
+      {
+        name: "callback",
+        document: "",
+        typeExpr: typeExpr.functionReturnVoid([])
+      }
+    ],
+    returnType: null,
+    statementList: [
+      expr.evaluateExpr(
+        expr.callMethod(
+          expr.callMethod(fetchWithBody(idToArray(functionId)), "then", [
+            expr.lambdaReturnVoid(
+              [responseType],
+              [
+                expr.returnStatement(
+                  expr.callMethod(expr.argument(0, 0), "text", [])
+                )
+              ]
+            )
+          ]),
+          "then",
+          [
+            expr.lambdaReturnVoid(
+              [typeExpr.typeString],
+              [
+                expr.evaluateExpr(
+                  expr.callMethod(globalConsole, "log", [expr.argument(0, 0)])
+                )
+              ]
+            )
+          ]
+        )
+      )
+    ]
+  });
+
+  const exportFunctionList: ReadonlyArray<generator.ExportFunction> = functionList.map(
+    func => httpRequestFunction(func.name, func.id)
   );
-  const document = global.variableList.document;
-  const console = global.variableList.console;
 
   const code: generator.Code = {
-    exportFunctionList: [],
+    exportFunctionList,
     exportTypeAliasList: [],
-    statementList: functionList.map(func =>
+    statementList: functionList.map((func, index) =>
       expr.evaluateExpr(
         expr.callMethod(
           expr.callMethod(document, "getElementById", [
@@ -165,20 +239,13 @@ const browserCode = (functionList: ReadonlyArray<type.ApiFunction>): string => {
             expr.stringLiteral("click"),
             expr.lambdaReturnVoid(
               [],
-              [
-                expr.evaluateExpr(
-                  expr.callMethod(console, "log", [
-                    expr.stringLiteral(func.name)
-                  ])
-                )
-              ]
+              [expr.evaluateExpr(expr.call(expr.localVariable(2, index), []))]
             )
           ]
         )
       )
     )
   };
-
   return generator.toESModulesBrowserCode(code);
 };
 
