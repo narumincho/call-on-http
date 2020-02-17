@@ -8,15 +8,18 @@ import * as binary from "./binary";
 export const emit = (api: type.Api): string => {
   const html = createHtmlFromServerCode(api);
 
-  const global = generator.createGlobalNamespace<
-    ["Buffer", "Uint8Array"],
-    ["Uint8Array"]
-  >(["Buffer", "Uint8Array"], ["Uint8Array"]);
+  const globalVariable = generator.expr.globalVariableList([
+    "Uint8Array"
+  ] as const);
+  const globalType = generator.typeExpr.globalTypeList([
+    "Buffer",
+    "Uint8Array"
+  ] as const);
 
-  const expressModule = generator.createImportNodeModule<
-    ["Request", "Response"],
-    []
-  >("express", ["Request", "Response"], []);
+  const expressType = generator.typeExpr.importedTypeList("express", [
+    "Request",
+    "Response"
+  ] as const);
 
   const middleware = generator.exportFunction({
     name: "middleware",
@@ -24,12 +27,12 @@ export const emit = (api: type.Api): string => {
       {
         name: "request",
         document: "リクエスト",
-        typeExpr: expressModule.typeList.Request
+        typeExpr: expressType.Request
       },
       {
         name: "response",
         document: "レスポンス",
-        typeExpr: expressModule.typeList.Response
+        typeExpr: expressType.Response
       }
     ],
     returnType: null,
@@ -61,7 +64,7 @@ export const emit = (api: type.Api): string => {
         ]
       ),
       expr.variableDefinition(
-        typeExpr.union([typeExpr.typeUndefined, global.typeList.Buffer]),
+        typeExpr.union([typeExpr.typeUndefined, globalType.Buffer]),
         expr.get(expr.argument(0, 0), "body")
       ),
       expr.ifStatement(
@@ -76,8 +79,8 @@ app.use(path, out.middleware);`)
         ]
       ),
       expr.variableDefinition(
-        global.typeList.Uint8Array,
-        expr.newExpr(global.variableList.Uint8Array, [expr.localVariable(0, 1)])
+        globalType.Uint8Array,
+        expr.newExpr(globalVariable.Uint8Array, [expr.localVariable(0, 1)])
       ),
       ...api.functionList.map(apiFunction =>
         expr.ifStatement(

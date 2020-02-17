@@ -2,7 +2,9 @@ import * as a from "express";
 /**
  * @id 3445f0bff168d2520aa7987d4d838daf
  * patternName=_ patternId=0e391e57e8ca9e79b17cd0a0a97ee930
- *  */ export type createUserRequest = { name: string; age: string };
+ *
+ */
+export type createUserRequest = { name: string; age: string };
 
 /**
  * ミドルウェア
