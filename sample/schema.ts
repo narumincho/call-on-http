@@ -46,6 +46,34 @@ const responseUserType: callOnHttp.type.ResponseObject = {
   ]
 };
 
+const getUserRequestObjectId = callOnHttp.type.requestObjectIdFromString(
+  "6d4874ad9b24116c4ffd0de8af486a99"
+);
+
+const getUserRequestObject: callOnHttp.type.RequestObject = {
+  name: "getUserRequestObject",
+  description: "",
+  id: getUserRequestObjectId,
+  patternList: [
+    {
+      id: callOnHttp.type.patternIdFromString(
+        "4f75083f1a7b7c04231e596fb9545cc2"
+      ),
+      name: "_",
+      memberList: [
+        {
+          name: "userId",
+          description: "ユーザーID",
+          id: callOnHttp.type.memberIdFromString(
+            "9bb4c47430010e490827121f7a21e89d"
+          ),
+          type: callOnHttp.type.idType(responseUserTypeId)
+        }
+      ]
+    }
+  ]
+};
+
 const createUserRequestObjectId = callOnHttp.type.requestObjectIdFromString(
   "3445f0bff168d2520aa7987d4d838daf"
 );
@@ -86,9 +114,19 @@ callOnHttp.generateServerCodeAndUpdateTemplate(
   {
     name: "sample api",
     url: new URL("http://localhost:8932"),
-    requestObjectList: [createUserRequestObject],
+    requestObjectList: [createUserRequestObject, getUserRequestObject],
     responseObjectList: [responseUserType],
     functionList: [
+      {
+        id: callOnHttp.type.functionIdFromString(
+          "d593f6584c858c09514fc5994aa78e7e"
+        ),
+        name: "getUser",
+        cacheByRequest: true,
+        description: "ユーザーの情報を取得する",
+        request: getUserRequestObjectId,
+        response: responseUserTypeId
+      },
       {
         id: callOnHttp.type.functionIdFromString(
           "b2c29cb62c4081e9e6613146f7ae15dc"
