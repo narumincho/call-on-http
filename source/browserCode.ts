@@ -2,16 +2,20 @@ import { expr, typeExpr } from "js-ts-code-generator";
 import * as generator from "js-ts-code-generator";
 import * as type from "./type";
 import * as binary from "./binary";
+import { URL } from "url";
 
 const responseType = typeExpr.globalType("Response");
 
-const fetchWithBody = (array: ReadonlyArray<number>): generator.expr.Expr => {
+const fetchWithBody = (
+  url: URL,
+  array: ReadonlyArray<number>
+): generator.expr.Expr => {
   const fetch = expr.globalVariable("fetch");
   const location = expr.globalVariable("location");
   const uint8Array = expr.globalVariable("Uint8Array");
 
   return expr.call(fetch, [
-    expr.get(location, "href"),
+    expr.stringLiteral(url.toString()),
     expr.objectLiteral(
       new Map([
         ["method", expr.stringLiteral("POST")],
@@ -36,6 +40,7 @@ const fetchWithBody = (array: ReadonlyArray<number>): generator.expr.Expr => {
 };
 
 const httpRequestFunction = (
+  url: URL,
   functionName: string,
   functionId: type.FunctionId
 ): generator.ExportFunction => ({
@@ -52,16 +57,20 @@ const httpRequestFunction = (
   statementList: [
     expr.evaluateExpr(
       expr.callMethod(
-        expr.callMethod(fetchWithBody(binary.idToArray(functionId)), "then", [
-          expr.lambdaReturnVoid(
-            [responseType],
-            [
-              expr.returnStatement(
-                expr.callMethod(expr.argument(0, 0), "text", [])
-              )
-            ]
-          )
-        ]),
+        expr.callMethod(
+          fetchWithBody(url, binary.idToArray(functionId)),
+          "then",
+          [
+            expr.lambdaReturnVoid(
+              [responseType],
+              [
+                expr.returnStatement(
+                  expr.callMethod(expr.argument(0, 0), "text", [])
+                )
+              ]
+            )
+          ]
+        ),
         "then",
         [
           expr.lambdaReturnVoid(
@@ -84,4 +93,6 @@ const httpRequestFunction = (
 export const create = (
   api: type.Api
 ): ReadonlyArray<generator.ExportFunction> =>
-  api.functionList.map(func => httpRequestFunction(func.name, func.id));
+  api.functionList.map(func =>
+    httpRequestFunction(api.url, func.name, func.id)
+  );

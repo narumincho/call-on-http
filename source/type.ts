@@ -1,5 +1,8 @@
+import { URL } from "url";
+
 export type Api = {
   name: string;
+  url: URL;
   requestObjectList: ReadonlyArray<RequestObject>;
   responseObjectList: ReadonlyArray<ResponseObject>;
   functionList: ReadonlyArray<ApiFunction>;
