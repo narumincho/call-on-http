@@ -1,4 +1,5 @@
 import * as callOnHttp from "../source/index";
+import { URL } from "url";
 
 const responseUserTypeId = callOnHttp.type.responseObjectIdFromString(
   "ec50f1628ff9bac06020a522855669be"
@@ -84,6 +85,7 @@ const createUserRequestObject: callOnHttp.type.RequestObject = {
 callOnHttp.generateServerCodeAndUpdateTemplate(
   {
     name: "sample api",
+    url: new URL("http://localhost:8932"),
     requestObjectList: [createUserRequestObject],
     responseObjectList: [responseUserType],
     functionList: [
