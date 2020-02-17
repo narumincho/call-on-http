@@ -8,41 +8,51 @@ export type Api = {
   functionList: ReadonlyArray<ApiFunction>;
 };
 
-export type FunctionId = string & { _functionId: never };
+export type FunctionId = number & { _functionId: never };
 
-export type RequestObjectId = string & { _requestObjectId: never };
+export type RequestObjectId = number & { _requestObjectId: never };
 
-export type ResponseObjectId = string & { _responseObjectId: never };
+export type ResponseObjectId = number & { _responseObjectId: never };
 
-export type PatternId = string & { _patternId: never };
+export type PatternId = number & { _patternId: never };
 
-export type MemberId = string & { _memberId: never };
+export type MemberId = number & { _memberId: never };
 
-export const functionIdFromString = (idAsString: string): FunctionId =>
-  idFromString(idAsString) as FunctionId;
+export const functionIdFromInteger = (idAsInteger: number): FunctionId =>
+  idFromNumber(idAsInteger) as FunctionId;
 
-export const requestObjectIdFromString = (
-  idAsString: string
-): RequestObjectId => idFromString(idAsString) as RequestObjectId;
+export const requestObjectIdFromInteger = (
+  idAsInteger: number
+): RequestObjectId => idFromNumber(idAsInteger) as RequestObjectId;
 
-export const responseObjectIdFromString = (
-  idAsString: string
-): ResponseObjectId => idFromString(idAsString) as ResponseObjectId;
+export const responseObjectIdFromInteger = (
+  idAsInteger: number
+): ResponseObjectId => idFromNumber(idAsInteger) as ResponseObjectId;
 
-export const patternIdFromString = (idAsString: string): PatternId =>
-  idFromString(idAsString) as PatternId;
+export const patternIdFromInteger = (idAsInteger: number): PatternId =>
+  idFromNumber(idAsInteger) as PatternId;
 
-export const memberIdFromString = (idAsString: string): MemberId =>
-  idFromString(idAsString) as MemberId;
+export const memberIdFromInteger = (idAsInteger: number): MemberId =>
+  idFromNumber(idAsInteger) as MemberId;
 
-const idFromString = (idAsString: string): string => {
-  if (idAsString.length !== 32) {
-    throw new Error("id length must be 32 id=" + idAsString);
+const idFromNumber = (idAsNumber: number): number => {
+  if (Number.isNaN(idAsNumber)) {
+    throw new Error("id must be not NaN");
   }
-  if (idAsString.match(/[^0123456789abcdef]/) !== null) {
-    throw new Error("id contains not 0123456789abcdef id=" + idAsString);
+  if (!Number.isInteger(idAsNumber)) {
+    throw new Error("id must be integer id=" + idAsNumber.toString());
   }
-  return idAsString;
+  if (idAsNumber < 0) {
+    throw new Error(
+      "id must be greater than or equal to 0. id=" + idAsNumber.toString()
+    );
+  }
+  if (2 ** 31 - 1 < idAsNumber) {
+    throw new Error(
+      "id must be less than 2147483648. id=" + idAsNumber.toString()
+    );
+  }
+  return idAsNumber;
 };
 
 export type ApiFunction = {
@@ -208,7 +218,7 @@ export const getResponseObject = (
   if (result === undefined) {
     throw new Error(
       "存在しないResponseObjectIdが使われている responseObjectId=" +
-        (id as string)
+        id.toString()
     );
   }
   return result;
@@ -221,8 +231,7 @@ export const getRequestObject = (
   const result = list.find(requestObject => requestObject.id === id);
   if (result === undefined) {
     throw new Error(
-      "存在しないRequestObjectIdが使われている requestObjectId=" +
-        (id as string)
+      "存在しないRequestObjectIdが使われている requestObjectId=" + id.toString()
     );
   }
   return result;

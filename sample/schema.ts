@@ -1,9 +1,7 @@
 import * as callOnHttp from "../source/index";
 import { URL } from "url";
 
-const responseUserTypeId = callOnHttp.type.responseObjectIdFromString(
-  "ec50f1628ff9bac06020a522855669be"
-);
+const responseUserTypeId = callOnHttp.type.responseObjectIdFromInteger(0);
 
 const responseUserType: callOnHttp.type.ResponseObject = {
   id: responseUserTypeId,
@@ -12,32 +10,24 @@ const responseUserType: callOnHttp.type.ResponseObject = {
   cacheType: callOnHttp.type.cacheById(60),
   patternList: [
     {
-      id: callOnHttp.type.patternIdFromString(
-        "f3da44ff53de8452ea595a2801b57427"
-      ),
+      id: callOnHttp.type.patternIdFromInteger(0),
       name: "_",
       memberList: [
         {
           name: "name",
-          id: callOnHttp.type.memberIdFromString(
-            "045f7a3787fd6cf60b02e6cb00deda6d"
-          ),
+          id: callOnHttp.type.memberIdFromInteger(0),
           type: callOnHttp.type.stringType,
           description: "名前"
         },
         {
           name: "age",
-          id: callOnHttp.type.memberIdFromString(
-            "ed9b3a2d71724911917360da036caa81"
-          ),
+          id: callOnHttp.type.memberIdFromInteger(1),
           type: callOnHttp.type.integerType,
           description: "年齢"
         },
         {
           name: "createdAt",
-          id: callOnHttp.type.memberIdFromString(
-            "f022c2047b228d9c0e3a1d2f1809d41f"
-          ),
+          id: callOnHttp.type.memberIdFromInteger(2),
           type: callOnHttp.type.dateTimeType,
           description: "作成日時"
         }
@@ -46,9 +36,7 @@ const responseUserType: callOnHttp.type.ResponseObject = {
   ]
 };
 
-const getUserRequestObjectId = callOnHttp.type.requestObjectIdFromString(
-  "6d4874ad9b24116c4ffd0de8af486a99"
-);
+const getUserRequestObjectId = callOnHttp.type.requestObjectIdFromInteger(0);
 
 const getUserRequestObject: callOnHttp.type.RequestObject = {
   name: "getUserRequestObject",
@@ -56,17 +44,13 @@ const getUserRequestObject: callOnHttp.type.RequestObject = {
   id: getUserRequestObjectId,
   patternList: [
     {
-      id: callOnHttp.type.patternIdFromString(
-        "4f75083f1a7b7c04231e596fb9545cc2"
-      ),
+      id: callOnHttp.type.patternIdFromInteger(0),
       name: "_",
       memberList: [
         {
           name: "userId",
           description: "ユーザーID",
-          id: callOnHttp.type.memberIdFromString(
-            "9bb4c47430010e490827121f7a21e89d"
-          ),
+          id: callOnHttp.type.memberIdFromInteger(0),
           type: callOnHttp.type.idType(responseUserTypeId)
         }
       ]
@@ -74,9 +58,7 @@ const getUserRequestObject: callOnHttp.type.RequestObject = {
   ]
 };
 
-const createUserRequestObjectId = callOnHttp.type.requestObjectIdFromString(
-  "3445f0bff168d2520aa7987d4d838daf"
-);
+const createUserRequestObjectId = callOnHttp.type.requestObjectIdFromInteger(1);
 
 const createUserRequestObject: callOnHttp.type.RequestObject = {
   name: "createUserRequest",
@@ -84,24 +66,18 @@ const createUserRequestObject: callOnHttp.type.RequestObject = {
   id: createUserRequestObjectId,
   patternList: [
     {
-      id: callOnHttp.type.patternIdFromString(
-        "0e391e57e8ca9e79b17cd0a0a97ee930"
-      ),
+      id: callOnHttp.type.patternIdFromInteger(0),
       name: "_",
       memberList: [
         {
           name: "name",
-          id: callOnHttp.type.memberIdFromString(
-            "05b4c36276e5c3e5de328d80c93e838f"
-          ),
+          id: callOnHttp.type.memberIdFromInteger(0),
           type: callOnHttp.type.stringType,
           description: "名前"
         },
         {
           name: "age",
-          id: callOnHttp.type.memberIdFromString(
-            "093ee90c539201b92ad479ba68b5ece7"
-          ),
+          id: callOnHttp.type.memberIdFromInteger(1),
           type: callOnHttp.type.integerType,
           description: "年齢"
         }
@@ -118,9 +94,7 @@ callOnHttp.generateServerCodeAndUpdateTemplate(
     responseObjectList: [responseUserType],
     functionList: [
       {
-        id: callOnHttp.type.functionIdFromString(
-          "d593f6584c858c09514fc5994aa78e7e"
-        ),
+        id: callOnHttp.type.functionIdFromInteger(0),
         name: "getUser",
         cacheByRequest: true,
         description: "ユーザーの情報を取得する",
@@ -128,9 +102,7 @@ callOnHttp.generateServerCodeAndUpdateTemplate(
         response: responseUserTypeId
       },
       {
-        id: callOnHttp.type.functionIdFromString(
-          "b2c29cb62c4081e9e6613146f7ae15dc"
-        ),
+        id: callOnHttp.type.functionIdFromInteger(1),
         name: "createUser",
         cacheByRequest: false,
         description: "ユーザーを作成する",

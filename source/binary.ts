@@ -1,12 +1,37 @@
 import * as type from "./type";
 import * as generator from "js-ts-code-generator";
 
-export const idToArray = (id: string): ReadonlyArray<number> => {
-  const binary = [];
-  for (let i = 0; i < 16; i++) {
-    binary.push(Number.parseInt(id.slice(i * 2, i * 2 + 2), 16));
+export const numberToUnsignedLeb128 = (num: number): ReadonlyArray<number> => {
+  const numberArray = [];
+  while (true) {
+    const b = num & 0x7f;
+    num = num >>> 7;
+    if (num === 0) {
+      numberArray.push(b);
+      break;
+    }
+    numberArray.push(b | 0x80);
   }
-  return binary;
+  return numberArray;
+};
+
+export const numberFromUnsignedLeb128 = (
+  index: number,
+  binary: Uint8Array
+): { result: number; nextIndex: number } => {
+  let result = 0;
+
+  for (let i = 0; i < 10; i++) {
+    const b = binary[index + i];
+    const low7Bits = b & 0x7f;
+    const done = (b & 0x80) === 0;
+
+    result |= low7Bits << (7 * i);
+    if (done) {
+      return { result, nextIndex: index + i + 1 };
+    }
+  }
+  throw new Error("larger than 64-bits");
 };
 
 const memberListToObjectTypeExpr = (
@@ -24,7 +49,7 @@ const memberListToObjectTypeExpr = (
     member.name,
     {
       typeExpr: generator.typeExpr.typeString,
-      document: "@id" + (member.id as string) + "\n" + member.description
+      document: "@id" + member.id.toString() + "\n" + member.description
     }
   ]);
 /**
@@ -51,7 +76,10 @@ export const requestObjectTypeToTypeAlias = (
   requestObjectType: type.RequestObject
 ): {
   typeAlias: generator.ExportTypeAlias;
-  exportConstEnum: generator.ExportConstEnum | null;
+  exportConstEnum: {
+    name: string;
+    tagNameAndValueList: generator.type.ExportConstEnum;
+  } | null;
 } => {
   if (requestObjectType.patternList.length === 1) {
     const pattern = requestObjectType.patternList[0];
@@ -60,11 +88,11 @@ export const requestObjectTypeToTypeAlias = (
         name: requestObjectType.name,
         document:
           "@id " +
-          (requestObjectType.id as string) +
+          requestObjectType.id.toString() +
           "\npatternName=" +
           pattern.name +
           " patternId=" +
-          (pattern.id as string) +
+          pattern.id.toString() +
           "\n" +
           requestObjectType.description,
         typeExpr: generator.typeExpr.object(
@@ -79,7 +107,7 @@ export const requestObjectTypeToTypeAlias = (
       name: requestObjectType.name,
       document:
         "@id" +
-        (requestObjectType.id as string) +
+        requestObjectType.id.toString() +
         "\n" +
         requestObjectType.description,
       typeExpr: generator.typeExpr.union(
@@ -105,7 +133,9 @@ export const requestObjectTypeToTypeAlias = (
     },
     exportConstEnum: {
       name: requestObjectType.name + "_",
-      patternList: requestObjectType.patternList.map(pattern => pattern.name)
+      tagNameAndValueList: new Map(
+        requestObjectType.patternList.map(pattern => [pattern.name, pattern.id])
+      )
     }
   };
 };

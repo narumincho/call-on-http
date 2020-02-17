@@ -21,6 +21,22 @@ export const emit = (api: type.Api): string => {
     "Response"
   ] as const);
 
+  const resultAndNextIndexType = typeExpr.object(
+    new Map([
+      ["result", { typeExpr: typeExpr.typeNumber, document: "" }],
+      ["nextIndex", { typeExpr: typeExpr.typeNumber, document: "" }]
+    ])
+  );
+
+  const numberToUnsignedLeb128Statement = expr.functionWithReturnValueVariableDefinition(
+    [typeExpr.typeNumber, globalType.Uint8Array],
+    resultAndNextIndexType,
+    [
+      expr.evaluateExpr(expr.stringLiteral("ここにちゃんとした実装を書くべし")),
+      expr.returnStatement(expr.literal({ result: 0, nextIndex: 1 }))
+    ]
+  );
+
   const middleware = generator.exportFunction({
     name: "middleware",
     parameterList: [
@@ -82,11 +98,23 @@ app.use(path, out.middleware);`)
         globalType.Uint8Array,
         expr.newExpr(globalVariable.Uint8Array, [expr.localVariable(0, 1)])
       ),
+      numberToUnsignedLeb128Statement,
+      expr.variableDefinition(
+        resultAndNextIndexType,
+        expr.call(expr.localVariable(0, 3), [
+          expr.numberLiteral(0),
+          expr.localVariable(0, 2)
+        ])
+      ),
+      expr.variableDefinition(
+        typeExpr.typeNumber,
+        expr.get(expr.localVariable(0, 4), "result")
+      ),
       ...api.functionList.map(apiFunction =>
         expr.ifStatement(
-          uint8ArrayStartWithFunctionId(
-            apiFunction.id,
-            expr.localVariable(0, 2)
+          expr.equal(
+            expr.numberLiteral(apiFunction.id),
+            expr.localVariable(0, 5)
           ),
           [
             expr.evaluateExpr(
@@ -101,7 +129,7 @@ app.use(path, out.middleware);`)
     document: "ミドルウェア"
   });
 
-  const requestTypeAliasListAndMaybeConstEnumList = api.requestObjectList.map(
+  const requestTypeAliasAndMaybeConstEnumList = api.requestObjectList.map(
     requestObjectType => binary.requestObjectTypeToTypeAlias(requestObjectType)
   );
 
@@ -110,65 +138,41 @@ app.use(path, out.middleware);`)
       generator.exportFunction({
         name: apiFunction.name,
         document:
-          "@id " + (apiFunction.id as string) + "\n" + apiFunction.description,
+          "@id " + apiFunction.id.toString() + "\n" + apiFunction.description,
         parameterList: [],
         returnType: generator.typeExpr.typeString,
         statementList: [
           expr.returnStatement(
             expr.stringLiteral(
-              apiFunction.name + "@" + (apiFunction.id as string)
+              apiFunction.name + "@" + apiFunction.id.toString()
             )
           )
         ]
       })
   );
-  const exportConstEnumList: Array<generator.ExportConstEnum> = [];
-  for (const { exportConstEnum } of requestTypeAliasListAndMaybeConstEnumList) {
+  const exportConstEnumMap: Map<
+    string,
+    generator.type.ExportConstEnum
+  > = new Map();
+  for (const { exportConstEnum } of requestTypeAliasAndMaybeConstEnumList) {
     if (exportConstEnum !== null) {
-      exportConstEnumList.push(exportConstEnum);
+      exportConstEnumMap.set(
+        exportConstEnum.name,
+        exportConstEnum.tagNameAndValueList
+      );
     }
   }
 
   const nodeJsCode: generator.Code = {
-    exportTypeAliasList: requestTypeAliasListAndMaybeConstEnumList.map(
+    exportTypeAliasList: requestTypeAliasAndMaybeConstEnumList.map(
       typeDefinition => typeDefinition.typeAlias
     ),
-    exportConstEnumList,
+    exportConstEnumMap,
     exportFunctionList: [middleware].concat(serverCodeTemplate),
     statementList: []
   };
 
   return generator.toNodeJsOrBrowserCodeAsTypeScript(nodeJsCode);
-};
-
-const uint8ArrayStartWithFunctionId = (
-  functionId: type.FunctionId,
-  uint8ArrayExpr: generator.expr.Expr
-): generator.expr.Expr => {
-  const idAsNumberArray = binary.idToArray(functionId);
-  let expr = generator.expr.logicalAnd(
-    generator.expr.equal(
-      generator.expr.getByExpr(uint8ArrayExpr, generator.expr.numberLiteral(0)),
-      generator.expr.numberLiteral(idAsNumberArray[0])
-    ),
-    generator.expr.equal(
-      generator.expr.getByExpr(uint8ArrayExpr, generator.expr.numberLiteral(1)),
-      generator.expr.numberLiteral(idAsNumberArray[1])
-    )
-  );
-  for (let i = 2; i < 16; i++) {
-    expr = generator.expr.logicalAnd(
-      expr,
-      generator.expr.equal(
-        generator.expr.getByExpr(
-          uint8ArrayExpr,
-          generator.expr.numberLiteral(i)
-        ),
-        generator.expr.numberLiteral(idAsNumberArray[i])
-      )
-    );
-  }
-  return expr;
 };
 
 const createBrowserCode = (
@@ -181,7 +185,7 @@ const createBrowserCode = (
   const code: generator.Code = {
     exportFunctionList: browserFunctionList,
     exportTypeAliasList: [],
-    exportConstEnumList: [],
+    exportConstEnumMap: new Map(),
     statementList: api.functionList.map((func, index) =>
       expr.evaluateExpr(
         expr.callMethod(
@@ -195,7 +199,7 @@ const createBrowserCode = (
               [],
               [
                 expr.evaluateExpr(
-                  expr.call(expr.localVariable(2, index), [
+                  expr.call(expr.globalVariable(func.name), [
                     expr.lambdaReturnVoid(
                       [typeExpr.typeString],
                       [
@@ -274,11 +278,11 @@ const createHtmlFromServerCode = (api: type.Api): string => {
       h.section([h.h2("Function"), functionListToHtml(api)]),
       h.section([
         h.h2("Request Object"),
-        requestObjectToHtml(api.requestObjectList)
+        requestObjectToHtml(api.requestObjectList, api.responseObjectList)
       ]),
       h.section([
         h.h2("Response Object"),
-        responseObjectToHtml(api.responseObjectList)
+        responseObjectToHtml(api.responseObjectList, api.requestObjectList)
       ]),
       h.section([
         h.h2("Browser Code TypeScript"),
@@ -289,7 +293,7 @@ const createHtmlFromServerCode = (api: type.Api): string => {
             _: h.HtmlElementChildren_.Text,
             text: generator.toNodeJsOrBrowserCodeAsTypeScript({
               exportFunctionList: browserFunctionList,
-              exportConstEnumList: [],
+              exportConstEnumMap: new Map(),
               exportTypeAliasList: [],
               statementList: []
             })
@@ -305,7 +309,7 @@ const createHtmlFromServerCode = (api: type.Api): string => {
             _: h.HtmlElementChildren_.Text,
             text: generator.toESModulesBrowserCode({
               exportFunctionList: browserFunctionList,
-              exportConstEnumList: [],
+              exportConstEnumMap: new Map(),
               exportTypeAliasList: [],
               statementList: []
             })
@@ -321,9 +325,9 @@ const functionListToHtml = (api: type.Api): h.Element =>
     null,
     api.functionList.map(
       (func): h.Element =>
-        h.div("function-" + (func.id as string), [
+        h.div("function-" + func.id.toString(), [
           h.h3(func.name),
-          h.div(null, func.id),
+          h.div(null, func.id.toString()),
           h.div(null, func.description),
           h.div(null, [
             h.div(null, "request object type"),
@@ -419,7 +423,8 @@ const responseTypeToHtml = (
 };
 
 const requestObjectToHtml = (
-  requestObjectList: ReadonlyArray<type.RequestObject>
+  requestObjectList: ReadonlyArray<type.RequestObject>,
+  responseObjectList: ReadonlyArray<type.ResponseObject>
 ): h.Element =>
   h.div(
     null,
@@ -427,7 +432,7 @@ const requestObjectToHtml = (
       (requestObject): h.Element =>
         h.div(null, [
           h.h3(requestObject.name),
-          h.div(null, requestObject.id),
+          h.div(null, requestObject.id.toString()),
           h.div(null, requestObject.description),
           h.div(
             null,
@@ -435,14 +440,19 @@ const requestObjectToHtml = (
               (pattern): h.Element =>
                 h.div(null, [
                   h.div(null, pattern.name),
-                  h.div(null, pattern.id),
+                  h.div(null, pattern.id.toString()),
                   h.div(
                     null,
                     pattern.memberList.map(member =>
                       h.div(null, [
                         h.div(null, member.name),
-                        h.div(null, member.id),
-                        h.div(null, member.description)
+                        h.div(null, member.id.toString()),
+                        h.div(null, member.description),
+                        requestTypeToHtml(
+                          member.type,
+                          requestObjectList,
+                          responseObjectList
+                        )
                       ])
                     )
                   )
@@ -454,7 +464,8 @@ const requestObjectToHtml = (
   );
 
 const responseObjectToHtml = (
-  responseObjectList: ReadonlyArray<type.ResponseObject>
+  responseObjectList: ReadonlyArray<type.ResponseObject>,
+  requestObjectList: ReadonlyArray<type.RequestObject>
 ): h.Element =>
   h.div(
     null,
@@ -470,14 +481,19 @@ const responseObjectToHtml = (
               (pattern): h.Element =>
                 h.div(null, [
                   h.div(null, pattern.name),
-                  h.div(null, pattern.id),
+                  h.div(null, pattern.id.toString()),
                   h.div(
                     null,
                     pattern.memberList.map(member =>
                       h.div(null, [
                         h.div(null, member.name),
-                        h.div(null, member.id),
-                        h.div(null, member.description)
+                        h.div(null, member.id.toString()),
+                        h.div(null, member.description),
+                        responseTypeToHtml(
+                          member.type,
+                          requestObjectList,
+                          responseObjectList
+                        )
                       ])
                     )
                   )
@@ -503,4 +519,4 @@ const cacheTypeToElement = (cacheType: type.CacheType): h.Element => {
 };
 
 const requestButtonId = (functionId: type.FunctionId): string =>
-  "request-" + (functionId as string);
+  "request-" + functionId.toString();
