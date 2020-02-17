@@ -186,7 +186,7 @@ const createBrowserCode = (
     exportFunctionList: browserFunctionList,
     exportTypeAliasList: [],
     exportConstEnumMap: new Map(),
-    statementList: api.functionList.map((func, index) =>
+    statementList: api.functionList.map(func =>
       expr.evaluateExpr(
         expr.callMethod(
           expr.callMethod(document, "getElementById", [
