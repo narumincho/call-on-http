@@ -78,7 +78,7 @@ export const requestObjectTypeToTypeAlias = (
   typeAlias: generator.ExportTypeAlias;
   exportConstEnum: {
     name: string;
-    tagNameAndValueList: generator.type.ExportConstEnum;
+    tagNameAndValueList: generator.type.ExportConstEnumTagNameAndValueList;
   } | null;
 } => {
   if (requestObjectType.patternList.length === 1) {

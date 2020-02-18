@@ -11,7 +11,6 @@ const fetchWithBody = (
   array: ReadonlyArray<number>
 ): generator.expr.Expr => {
   const fetch = expr.globalVariable("fetch");
-  const location = expr.globalVariable("location");
   const uint8Array = expr.globalVariable("Uint8Array");
 
   return expr.call(fetch, [
