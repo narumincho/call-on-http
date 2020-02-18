@@ -1,5 +1,7 @@
 import * as type from "./type";
 import * as generator from "js-ts-code-generator";
+import { expr, typeExpr } from "js-ts-code-generator";
+import { TextDecoder } from "util";
 
 export const numberToUnsignedLeb128 = (num: number): ReadonlyArray<number> => {
   const numberArray = [];
@@ -41,12 +43,12 @@ const memberListToObjectTypeExpr = (
   }>
 ): ReadonlyArray<readonly [
   string,
-  { typeExpr: generator.typeExpr.TypeExpr; document: string }
+  { typeExpr: typeExpr.TypeExpr; document: string }
 ]> =>
   memberList.map(member => [
     member.name,
     {
-      typeExpr: generator.typeExpr.typeString,
+      typeExpr: typeExpr.typeString,
       document: "@id" + member.id.toString() + "\n" + member.description
     }
   ]);
@@ -93,7 +95,7 @@ export const requestObjectTypeToTypeAlias = (
           pattern.id.toString() +
           "\n" +
           requestObjectType.description,
-        typeExpr: generator.typeExpr.object(
+        typeExpr: typeExpr.object(
           new Map(memberListToObjectTypeExpr(pattern.memberList))
         )
       },
@@ -108,9 +110,9 @@ export const requestObjectTypeToTypeAlias = (
         requestObjectType.id.toString() +
         "\n" +
         requestObjectType.description,
-      typeExpr: generator.typeExpr.union(
+      typeExpr: typeExpr.union(
         requestObjectType.patternList.map(pattern =>
-          generator.typeExpr.object(
+          typeExpr.object(
             new Map(
               [
                 [
@@ -137,3 +139,106 @@ export const requestObjectTypeToTypeAlias = (
     }
   };
 };
+
+const stringDecoder = (
+  index: number,
+  binary: Uint8Array
+): { result: string; nextIndex: number } => {
+  const length = numberFromUnsignedLeb128(index, binary);
+  return {
+    result: new TextDecoder().decode(
+      binary.slice(
+        index + length.nextIndex,
+        index + length.nextIndex + length.result
+      )
+    ),
+    nextIndex: index + length.nextIndex + length.result
+  };
+};
+
+export const stringDecoderCode = (
+  textDecoderExpr: generator.expr.Expr,
+  integerDecoderIndex: number
+): generator.expr.Statement =>
+  generator.expr.functionWithReturnValueVariableDefinition(
+    [typeExpr.typeNumber, typeExpr.globalType("Uint8Array")],
+    typeExpr.object(
+      new Map([
+        ["result", { typeExpr: typeExpr.typeString, document: "" }],
+        ["nextIndex", { typeExpr: typeExpr.typeNumber, document: "" }]
+      ])
+    ),
+    [
+      expr.variableDefinition(
+        typeExpr.object(
+          new Map([
+            ["result", { typeExpr: typeExpr.typeNumber, document: "" }],
+            ["nextIndex", { typeExpr: typeExpr.typeNumber, document: "" }]
+          ])
+        ),
+        expr.call(expr.localVariable(1, integerDecoderIndex), [
+          expr.argument(0, 0),
+          expr.argument(0, 1)
+        ])
+      ),
+      expr.returnStatement(
+        expr.objectLiteral(
+          new Map([
+            [
+              "result",
+              expr.callMethod(expr.newExpr(textDecoderExpr, []), "decode", [
+                expr.callMethod(expr.argument(0, 1), "slice", [
+                  expr.addition(
+                    expr.argument(0, 0),
+                    expr.get(expr.localVariable(0, 0), "nextIndex")
+                  ),
+                  expr.addition(
+                    expr.addition(
+                      expr.argument(0, 0),
+                      expr.get(expr.localVariable(0, 0), "nextIndex")
+                    ),
+                    expr.get(expr.localVariable(0, 0), "result")
+                  )
+                ])
+              ])
+            ],
+            [
+              "nextIndex",
+              expr.addition(
+                expr.addition(
+                  expr.argument(0, 0),
+                  expr.get(expr.localVariable(0, 0), "nextIndex")
+                ),
+                expr.get(expr.localVariable(0, 0), "result")
+              )
+            ]
+          ])
+        )
+      )
+    ]
+  );
+
+/*
+const binaryToRequestObject = (
+  index: number,
+  binary: Uint8Array
+): { result: object; nextIndex: number } => {
+  const patternIdAndNextIndex = numberFromUnsignedLeb128(index, binary);
+  const patternId = patternIdAndNextIndex.result;
+  if (patternId === 0) {
+    const nameAndNextIndex = stringDecoder(
+      patternIdAndNextIndex.nextIndex,
+      binary
+    );
+    const ageAndNextIndex = numberFromUnsignedLeb128(
+      nameAndNextIndex.nextIndex,
+      binary
+    );
+    const result = createUser(
+      nameAndNextIndex.result,
+      ageAndNextIndex.nextIndex
+    );
+  }
+};
+
+*/

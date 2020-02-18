@@ -149,11 +149,12 @@ app.use(path, out.middleware);`)
         typeExpr.typeNumber,
         expr.get(expr.localVariable(0, 4), "result")
       ),
+      binary.stringDecoderCode(expr.importedVariable("util", "TextDecoder"), 3),
       ...api.functionList.map(apiFunction =>
         expr.ifStatement(
           expr.equal(
-            expr.numberLiteral(apiFunction.id),
-            expr.localVariable(0, 5)
+            expr.localVariable(0, 5),
+            expr.numberLiteral(apiFunction.id)
           ),
           [
             expr.evaluateExpr(
