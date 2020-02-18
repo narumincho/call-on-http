@@ -30,8 +30,15 @@ export const middleware = (request: a.Request, response: a.Response): void => {
   }
   const d: Uint8Array = new Uint8Array(c);
   const e = (h: number, i: Uint8Array): {result: number, nextIndex: number}=>{
-    "ここにちゃんとした実装を書くべし";
-    return{ result: 0, nextIndex: 1 };
+    let j: number = 0;
+for (let k = 0; k < 10;k+= 1){
+      const l: number = i[h + k];
+      j |= (l & 127) << 7 * k;
+      if ((l & 8) === 0) {
+        return{ result: j, nextIndex: h + k + 1 };
+      }
+    }
+    throw new Error("larger than 64-bits");
   };
   const f: {result: number, nextIndex: number} = e(0, d);
   const g: number = f.result;

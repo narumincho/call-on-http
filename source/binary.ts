@@ -23,11 +23,9 @@ export const numberFromUnsignedLeb128 = (
 
   for (let i = 0; i < 10; i++) {
     const b = binary[index + i];
-    const low7Bits = b & 0x7f;
-    const done = (b & 0x80) === 0;
 
-    result |= low7Bits << (7 * i);
-    if (done) {
+    result |= (b & 0x7f) << (7 * i);
+    if ((b & 0x80) === 0) {
       return { result, nextIndex: index + i + 1 };
     }
   }

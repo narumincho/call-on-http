@@ -32,8 +32,47 @@ export const emit = (api: type.Api): string => {
     [typeExpr.typeNumber, globalType.Uint8Array],
     resultAndNextIndexType,
     [
-      expr.evaluateExpr(expr.stringLiteral("ここにちゃんとした実装を書くべし")),
-      expr.returnStatement(expr.literal({ result: 0, nextIndex: 1 }))
+      expr.letVariableDefinition(typeExpr.typeNumber, expr.numberLiteral(0)),
+      expr.forStatement(expr.numberLiteral(10), [
+        expr.variableDefinition(
+          typeExpr.typeNumber,
+          expr.getByExpr(
+            expr.argument(1, 1),
+            expr.addition(expr.argument(1, 0), expr.argument(0, 0))
+          )
+        ),
+        expr.set(
+          expr.localVariable(1, 0),
+          "|",
+          expr.leftShift(
+            expr.bitwiseAnd(expr.localVariable(0, 0), expr.numberLiteral(0x7f)),
+            expr.multiplication(expr.numberLiteral(7), expr.argument(0, 0))
+          )
+        ),
+        expr.ifStatement(
+          expr.equal(
+            expr.bitwiseAnd(expr.localVariable(0, 0), expr.numberLiteral(0x08)),
+            expr.numberLiteral(0)
+          ),
+          [
+            expr.returnStatement(
+              expr.objectLiteral(
+                new Map([
+                  ["result", expr.localVariable(2, 0)],
+                  [
+                    "nextIndex",
+                    expr.addition(
+                      expr.addition(expr.argument(2, 0), expr.argument(1, 0)),
+                      expr.numberLiteral(1)
+                    )
+                  ]
+                ])
+              )
+            )
+          ]
+        )
+      ]),
+      expr.throwError("larger than 64-bits")
     ]
   );
 
