@@ -152,7 +152,7 @@ app.use(path, out.middleware);`)
   );
   const exportConstEnumMap: Map<
     string,
-    generator.type.ExportConstEnum
+    generator.type.ExportConstEnumTagNameAndValueList
   > = new Map();
   for (const { exportConstEnum } of requestTypeAliasAndMaybeConstEnumList) {
     if (exportConstEnum !== null) {
