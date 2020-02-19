@@ -4,6 +4,7 @@ import { expr, typeExpr } from "js-ts-code-generator";
 import * as h from "@narumincho/html";
 import * as browserCode from "./browserCode";
 import * as binary from "./binary";
+import { URL } from "url";
 
 export const emit = (api: type.Api): string => {
   const html = createHtmlFromServerCode(api);
@@ -304,7 +305,8 @@ const createHtmlFromServerCode = (api: type.Api): string => {
     `,
     script: createBrowserCode(api, browserFunctionList),
     iconPath: [],
-    coverImageUrl: "",
+    coverImageUrl: api.url,
+    styleUrlList: [],
     scriptUrlList: [],
     javaScriptMustBeAvailable: true,
     path: [],
@@ -314,47 +316,39 @@ const createHtmlFromServerCode = (api: type.Api): string => {
     twitterCard: h.TwitterCard.SummaryCard,
     language: h.Language.Japanese,
     body: [
-      h.h1(api.name + "API Document"),
-      h.section([h.h2("Function"), functionListToHtml(api)]),
-      h.section([
-        h.h2("Request Object"),
+      h.h1({}, api.name + "API Document"),
+      h.section({}, [h.h2({}, "Function"), functionListToHtml(api)]),
+      h.section({}, [
+        h.h2({}, "Request Object"),
         requestObjectToHtml(api.requestObjectList, api.responseObjectList)
       ]),
-      h.section([
-        h.h2("Response Object"),
+      h.section({}, [
+        h.h2({}, "Response Object"),
         responseObjectToHtml(api.responseObjectList, api.requestObjectList)
       ]),
-      h.section([
-        h.h2("Browser Code TypeScript"),
-        {
-          name: "code",
-          attributes: new Map(),
-          children: {
-            _: h.HtmlElementChildren_.Text,
-            text: generator.toNodeJsOrBrowserCodeAsTypeScript({
-              exportFunctionList: browserFunctionList,
-              exportConstEnumMap: new Map(),
-              exportTypeAliasList: [],
-              statementList: []
-            })
-          }
-        }
+      h.section({}, [
+        h.h2({}, "Browser Code TypeScript"),
+        h.code(
+          {},
+          generator.toNodeJsOrBrowserCodeAsTypeScript({
+            exportFunctionList: browserFunctionList,
+            exportConstEnumMap: new Map(),
+            exportTypeAliasList: [],
+            statementList: []
+          })
+        )
       ]),
-      h.section([
-        h.h2("Browser Code JavaScript"),
-        {
-          name: "code",
-          attributes: new Map(),
-          children: {
-            _: h.HtmlElementChildren_.Text,
-            text: generator.toESModulesBrowserCode({
-              exportFunctionList: browserFunctionList,
-              exportConstEnumMap: new Map(),
-              exportTypeAliasList: [],
-              statementList: []
-            })
-          }
-        }
+      h.section({}, [
+        h.h2({}, "Browser Code JavaScript"),
+        h.code(
+          {},
+          generator.toESModulesBrowserCode({
+            exportFunctionList: browserFunctionList,
+            exportConstEnumMap: new Map(),
+            exportTypeAliasList: [],
+            statementList: []
+          })
+        )
       ])
     ]
   });
@@ -362,29 +356,28 @@ const createHtmlFromServerCode = (api: type.Api): string => {
 
 const functionListToHtml = (api: type.Api): h.Element =>
   h.div(
-    null,
-    api.functionList.map(
-      (func): h.Element =>
-        h.div("function-" + func.id.toString(), [
-          h.h3(func.name),
-          h.div(null, func.id.toString()),
-          h.div(null, func.description),
-          h.div(null, [
-            h.div(null, "request object type"),
-            h.div(
-              null,
-              type.getRequestObject(func.request, api.requestObjectList).name
-            )
-          ]),
-          h.div(null, [
-            h.div(null, "response object type"),
-            h.div(
-              null,
-              type.getResponseObject(func.response, api.responseObjectList).name
-            )
-          ]),
-          h.button(requestButtonId(func.id), "Request")
-        ])
+    {},
+    api.functionList.map<h.Element>(func =>
+      h.div({ id: "function-" + func.id.toString() }, [
+        h.h3({}, func.name),
+        h.div({}, func.id.toString()),
+        h.div({}, func.description),
+        h.div({}, [
+          h.div({}, "request object type"),
+          h.div(
+            {},
+            type.getRequestObject(func.request, api.requestObjectList).name
+          )
+        ]),
+        h.div({}, [
+          h.div({}, "response object type"),
+          h.div(
+            {},
+            type.getResponseObject(func.response, api.responseObjectList).name
+          )
+        ]),
+        h.button({ id: requestButtonId(func.id) }, "Request")
+      ])
     )
   );
 
@@ -395,31 +388,31 @@ const requestTypeToHtml = (
 ): h.Element => {
   switch (type_._) {
     case type.Type_.String:
-      return h.div(null, "string");
+      return h.div({}, "string");
     case type.Type_.Integer:
-      return h.div(null, "integer");
+      return h.div({}, "integer");
     case type.Type_.DateTime:
-      return h.div(null, "dateTime");
+      return h.div({}, "dateTime");
     case type.Type_.List:
-      return h.div(null, [
-        h.div(null, "list"),
+      return h.div({}, [
+        h.div({}, "list"),
         requestTypeToHtml(type_.type, requestObjectList, responseObjectList)
       ]);
     case type.Type_.Id:
       return h.div(
-        null,
+        {},
         type.getResponseObject(type_.responseObjectId, responseObjectList)
           .name + "-id"
       );
     case type.Type_.Hash:
       return h.div(
-        null,
+        {},
         type.getResponseObject(type_.responseObjectId, responseObjectList)
           .name + "-hash"
       );
     case type.Type_.Object:
       return h.div(
-        null,
+        {},
         type.getRequestObject(type_.objectId, requestObjectList).name
       );
   }
@@ -432,31 +425,31 @@ const responseTypeToHtml = (
 ): h.Element => {
   switch (type_._) {
     case type.Type_.String:
-      return h.div(null, "string");
+      return h.div({}, "string");
     case type.Type_.Integer:
-      return h.div(null, "integer");
+      return h.div({}, "integer");
     case type.Type_.DateTime:
-      return h.div(null, "dateTime");
+      return h.div({}, "dateTime");
     case type.Type_.List:
-      return h.div(null, [
-        h.div(null, "list"),
+      return h.div({}, [
+        h.div({}, "list"),
         responseTypeToHtml(type_.type, requestObjectList, responseObjectList)
       ]);
     case type.Type_.Id:
       return h.div(
-        null,
+        {},
         type.getResponseObject(type_.responseObjectId, responseObjectList)
           .name + "-id"
       );
     case type.Type_.Hash:
       return h.div(
-        null,
+        {},
         type.getResponseObject(type_.responseObjectId, responseObjectList)
           .name + "-hash"
       );
     case type.Type_.Object:
       return h.div(
-        null,
+        {},
         type.getResponseObject(type_.objectId, responseObjectList).name
       );
   }
@@ -467,39 +460,37 @@ const requestObjectToHtml = (
   responseObjectList: ReadonlyArray<type.ResponseObject>
 ): h.Element =>
   h.div(
-    null,
-    requestObjectList.map(
-      (requestObject): h.Element =>
-        h.div(null, [
-          h.h3(requestObject.name),
-          h.div(null, requestObject.id.toString()),
-          h.div(null, requestObject.description),
-          h.div(
-            null,
-            requestObject.patternList.map(
-              (pattern): h.Element =>
-                h.div(null, [
-                  h.div(null, pattern.name),
-                  h.div(null, pattern.id.toString()),
-                  h.div(
-                    null,
-                    pattern.memberList.map(member =>
-                      h.div(null, [
-                        h.div(null, member.name),
-                        h.div(null, member.id.toString()),
-                        h.div(null, member.description),
-                        requestTypeToHtml(
-                          member.type,
-                          requestObjectList,
-                          responseObjectList
-                        )
-                      ])
+    {},
+    requestObjectList.map<h.Element>(requestObject =>
+      h.div({}, [
+        h.h3({}, requestObject.name),
+        h.div({}, requestObject.id.toString()),
+        h.div({}, requestObject.description),
+        h.div(
+          {},
+          requestObject.patternList.map<h.Element>(pattern =>
+            h.div({}, [
+              h.div({}, pattern.name),
+              h.div({}, pattern.id.toString()),
+              h.div(
+                {},
+                pattern.memberList.map(member =>
+                  h.div({}, [
+                    h.div({}, member.name),
+                    h.div({}, member.id.toString()),
+                    h.div({}, member.description),
+                    requestTypeToHtml(
+                      member.type,
+                      requestObjectList,
+                      responseObjectList
                     )
-                  )
-                ])
-            )
+                  ])
+                )
+              )
+            ])
           )
-        ])
+        )
+      ])
     )
   );
 
@@ -508,53 +499,51 @@ const responseObjectToHtml = (
   requestObjectList: ReadonlyArray<type.RequestObject>
 ): h.Element =>
   h.div(
-    null,
-    responseObjectList.map(
-      (responseObject): h.Element =>
-        h.div("response-object-" + responseObject.name, [
-          h.h3(responseObject.name),
-          h.div(null, responseObject.description),
-          cacheTypeToElement(responseObject.cacheType),
-          h.div(
-            null,
-            responseObject.patternList.map(
-              (pattern): h.Element =>
-                h.div(null, [
-                  h.div(null, pattern.name),
-                  h.div(null, pattern.id.toString()),
-                  h.div(
-                    null,
-                    pattern.memberList.map(member =>
-                      h.div(null, [
-                        h.div(null, member.name),
-                        h.div(null, member.id.toString()),
-                        h.div(null, member.description),
-                        responseTypeToHtml(
-                          member.type,
-                          requestObjectList,
-                          responseObjectList
-                        )
-                      ])
+    {},
+    responseObjectList.map<h.Element>(responseObject =>
+      h.div({ id: "response-object-" + responseObject.name }, [
+        h.h3({}, responseObject.name),
+        h.div({}, responseObject.description),
+        cacheTypeToElement(responseObject.cacheType),
+        h.div(
+          {},
+          responseObject.patternList.map<h.Element>(pattern =>
+            h.div({}, [
+              h.div({}, pattern.name),
+              h.div({}, pattern.id.toString()),
+              h.div(
+                {},
+                pattern.memberList.map(member =>
+                  h.div({}, [
+                    h.div({}, member.name),
+                    h.div({}, member.id.toString()),
+                    h.div({}, member.description),
+                    responseTypeToHtml(
+                      member.type,
+                      requestObjectList,
+                      responseObjectList
                     )
-                  )
-                ])
-            )
+                  ])
+                )
+              )
+            ])
           )
-        ])
+        )
+      ])
     )
   );
 
 const cacheTypeToElement = (cacheType: type.CacheType): h.Element => {
   switch (cacheType._) {
     case type.CacheType_.Never:
-      return h.div(null, "never");
+      return h.div({}, "never");
     case type.CacheType_.CacheById:
       return h.div(
-        null,
+        {},
         "cacheById freshTime=" + cacheType.freshSeconds.toString() + "s"
       );
     case type.CacheType_.cacheByHash:
-      return h.div(null, "hash");
+      return h.div({}, "hash");
   }
 };
 
