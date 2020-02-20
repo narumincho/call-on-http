@@ -86,31 +86,35 @@ const createUserRequestObject: callOnHttp.type.RequestObject = {
   ]
 };
 
-callOnHttp.generateServerCodeAndUpdateTemplate(
-  {
-    name: "sample api",
-    url: new URL("http://localhost:8932"),
-    requestObjectList: [createUserRequestObject, getUserRequestObject],
-    responseObjectList: [responseUserType],
-    functionList: [
-      {
-        id: callOnHttp.type.functionIdFromInteger(0),
-        name: "getUser",
-        cacheByRequest: true,
-        description: "ユーザーの情報を取得する",
-        request: getUserRequestObjectId,
-        response: responseUserTypeId
-      },
-      {
-        id: callOnHttp.type.functionIdFromInteger(1),
-        name: "createUser",
-        cacheByRequest: false,
-        description: "ユーザーを作成する",
-        request: createUserRequestObjectId,
-        response: responseUserTypeId
-      }
-    ]
-  },
-  "./sample/out.ts",
-  { allowBreakingChange: false }
-);
+callOnHttp
+  .generateServerCodeAndUpdateTemplate(
+    {
+      name: "sample api",
+      url: new URL("http://localhost:8932"),
+      requestObjectList: [createUserRequestObject, getUserRequestObject],
+      responseObjectList: [responseUserType],
+      functionList: [
+        {
+          id: callOnHttp.type.functionIdFromInteger(0),
+          name: "getUser",
+          cacheByRequest: true,
+          description: "ユーザーの情報を取得する",
+          request: getUserRequestObjectId,
+          response: responseUserTypeId
+        },
+        {
+          id: callOnHttp.type.functionIdFromInteger(1),
+          name: "createUser",
+          cacheByRequest: false,
+          description: "ユーザーを作成する",
+          request: createUserRequestObjectId,
+          response: responseUserTypeId
+        }
+      ]
+    },
+    "./sample/out.ts",
+    { allowBreakingChange: false }
+  )
+  .then(() => {
+    console.log("generate code!");
+  });

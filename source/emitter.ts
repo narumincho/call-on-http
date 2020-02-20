@@ -9,9 +9,6 @@ import { URL } from "url";
 export const emit = (api: type.Api): string => {
   const html = createHtmlFromServerCode(api);
 
-  const globalVariable = generator.expr.globalVariableList([
-    "Uint8Array"
-  ] as const);
   const globalType = generator.typeExpr.globalTypeList([
     "Buffer",
     "Uint8Array"
@@ -22,60 +19,18 @@ export const emit = (api: type.Api): string => {
     "Response"
   ] as const);
 
-  const resultAndNextIndexType = typeExpr.object(
-    new Map([
-      ["result", { typeExpr: typeExpr.typeNumber, document: "" }],
-      ["nextIndex", { typeExpr: typeExpr.typeNumber, document: "" }]
-    ])
-  );
-
-  const numberToUnsignedLeb128Statement = expr.functionWithReturnValueVariableDefinition(
-    [typeExpr.typeNumber, globalType.Uint8Array],
-    resultAndNextIndexType,
-    [
-      expr.letVariableDefinition(typeExpr.typeNumber, expr.numberLiteral(0)),
-      expr.forStatement(expr.numberLiteral(10), [
-        expr.variableDefinition(
-          typeExpr.typeNumber,
-          expr.getByExpr(
-            expr.argument(1, 1),
-            expr.addition(expr.argument(1, 0), expr.argument(0, 0))
-          )
-        ),
-        expr.set(
-          expr.localVariable(1, 0),
-          "|",
-          expr.leftShift(
-            expr.bitwiseAnd(expr.localVariable(0, 0), expr.numberLiteral(0x7f)),
-            expr.multiplication(expr.numberLiteral(7), expr.argument(0, 0))
-          )
-        ),
-        expr.ifStatement(
-          expr.equal(
-            expr.bitwiseAnd(expr.localVariable(0, 0), expr.numberLiteral(0x08)),
-            expr.numberLiteral(0)
-          ),
-          [
-            expr.returnStatement(
-              expr.objectLiteral(
-                new Map([
-                  ["result", expr.localVariable(2, 0)],
-                  [
-                    "nextIndex",
-                    expr.addition(
-                      expr.addition(expr.argument(2, 0), expr.argument(1, 0)),
-                      expr.numberLiteral(1)
-                    )
-                  ]
-                ])
-              )
-            )
-          ]
-        )
-      ]),
-      expr.throwError("larger than 64-bits")
-    ]
-  );
+  const acceptName = ["accept"];
+  const accept = expr.localVariable(acceptName);
+  const request = expr.localVariable(["request"]);
+  const response = expr.localVariable(["response"]);
+  const bodyName = ["body"];
+  const body = expr.localVariable(bodyName);
+  const requestBinaryName = ["requestBinary"];
+  const requestBinary = expr.localVariable(requestBinaryName);
+  const functionIdAndIndexName = ["functionIdAndIndex"];
+  const functionIdAndIndex = expr.localVariable(functionIdAndIndexName);
+  const functionIdName = ["functionId"];
+  const functionId = expr.localVariable(functionIdName);
 
   const middleware = generator.exportFunction({
     name: "middleware",
@@ -94,72 +49,64 @@ export const emit = (api: type.Api): string => {
     returnType: null,
     statementList: [
       expr.variableDefinition(
+        acceptName,
         typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
-        expr.get(expr.get(expr.argument(0, 0), "headers"), "accept")
+        expr.get(expr.get(request, "headers"), "accept")
       ),
       expr.ifStatement(
         expr.logicalAnd(
-          expr.notEqual(expr.localVariable(0, 0), expr.undefinedLiteral),
-          expr.callMethod(expr.localVariable(0, 0), "includes", [
-            expr.literal("text/html")
-          ])
+          expr.notEqual(accept, expr.undefinedLiteral),
+          expr.callMethod(accept, "includes", [expr.literal("text/html")])
         ),
         [
           expr.evaluateExpr(
-            expr.callMethod(expr.argument(1, 1), "setHeader", [
+            expr.callMethod(response, "setHeader", [
               expr.literal("content-type"),
               expr.literal("text/html")
             ])
           ),
           expr.evaluateExpr(
-            expr.callMethod(expr.argument(1, 1), "send", [
-              expr.stringLiteral(html)
-            ])
+            expr.callMethod(response, "send", [expr.stringLiteral(html)])
           ),
           expr.returnVoidStatement
         ]
       ),
       expr.variableDefinition(
+        bodyName,
         typeExpr.union([typeExpr.typeUndefined, globalType.Buffer]),
-        expr.get(expr.argument(0, 0), "body")
+        expr.get(request, "body")
       ),
-      expr.ifStatement(
-        expr.equal(expr.localVariable(0, 1), expr.undefinedLiteral),
-        [
-          expr.throwError(`use binary body parser. in middleware app.
+      expr.ifStatement(expr.equal(body, expr.undefinedLiteral), [
+        expr.throwError(`use binary body parser. in middleware app.
 
 const app = express();
 
 app.use(express.raw());
 app.use(path, out.middleware);`)
-        ]
-      ),
+      ]),
       expr.variableDefinition(
+        requestBinaryName,
         globalType.Uint8Array,
-        expr.newExpr(globalVariable.Uint8Array, [expr.localVariable(0, 1)])
+        expr.newExpr(expr.globalVariable("Uint8Array"), [body])
       ),
-      numberToUnsignedLeb128Statement,
+      binary.decodeInt32Code,
+      binary.decodeStringCode(false),
       expr.variableDefinition(
-        resultAndNextIndexType,
-        expr.call(expr.localVariable(0, 3), [
-          expr.numberLiteral(0),
-          expr.localVariable(0, 2)
-        ])
+        functionIdAndIndexName,
+        binary.resultAndNextIndexType(typeExpr.typeNumber),
+        expr.call(binary.decodeInt32Var, [expr.numberLiteral(0), requestBinary])
       ),
       expr.variableDefinition(
+        functionIdName,
         typeExpr.typeNumber,
-        expr.get(expr.localVariable(0, 4), "result")
+        expr.get(functionIdAndIndex, "result")
       ),
-      binary.stringDecoderCode(expr.importedVariable("util", "TextDecoder"), 3),
       ...api.functionList.map(apiFunction =>
         expr.ifStatement(
-          expr.equal(
-            expr.localVariable(0, 5),
-            expr.numberLiteral(apiFunction.id)
-          ),
+          expr.equal(functionId, expr.numberLiteral(apiFunction.id)),
           [
             expr.evaluateExpr(
-              expr.callMethod(expr.argument(1, 1), "send", [
+              expr.callMethod(response, "send", [
                 expr.call(expr.globalVariable(apiFunction.name), [])
               ])
             )
@@ -242,11 +189,11 @@ const createBrowserCode = (
                 expr.evaluateExpr(
                   expr.call(expr.globalVariable(func.name), [
                     expr.lambdaReturnVoid(
-                      [typeExpr.typeString],
+                      [{ name: ["e"], typeExpr: typeExpr.typeString }],
                       [
                         expr.evaluateExpr(
                           expr.callMethod(globalConsole, "log", [
-                            expr.argument(0, 0)
+                            expr.localVariable(["e"])
                           ])
                         )
                       ]

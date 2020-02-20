@@ -61,10 +61,10 @@ const httpRequestFunction = (
           "then",
           [
             expr.lambdaReturnVoid(
-              [responseType],
+              [{ name: ["e"], typeExpr: responseType }],
               [
                 expr.returnStatement(
-                  expr.callMethod(expr.argument(0, 0), "text", [])
+                  expr.callMethod(expr.localVariable(["e"]), "text", [])
                 )
               ]
             )
@@ -73,10 +73,12 @@ const httpRequestFunction = (
         "then",
         [
           expr.lambdaReturnVoid(
-            [typeExpr.typeString],
+            [{ name: ["e"], typeExpr: typeExpr.typeString }],
             [
               expr.evaluateExpr(
-                expr.call(expr.argument(1, 0), [expr.argument(0, 0)])
+                expr.call(expr.localVariable(["callback"]), [
+                  expr.localVariable(["e"])
+                ])
               )
             ]
           )

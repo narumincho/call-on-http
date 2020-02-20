@@ -32,25 +32,25 @@ export const middleware = (request: a.Request, response: a.Response): void => {
   const e: Uint8Array = new Uint8Array(d);
   const f = (j: number, k: Uint8Array): {result: number, nextIndex: number}=>{
     let l: number = 0;
-for (let m = 0; m < 10;m+= 1){
+for (let m = 0; m < 5;m+= 1){
       const n: number = k[j + m];
       l |= (n & 127) << 7 * m;
-      if ((n & 8) === 0) {
+      if ((n & 8) === 0 && 0 <= l && l < 4294967295) {
         return{ result: l, nextIndex: j + m + 1 };
       }
     }
-    throw new Error("larger than 64-bits");
+    throw new Error("larger than 32-bits");
   };
-  const g: {result: number, nextIndex: number} = f(0, e);
-  const h: number = g.result;
-  const i = (j: number, k: Uint8Array): {result: string, nextIndex: number}=>{
+  const g = (j: number, k: Uint8Array): {result: string, nextIndex: number}=>{
     const l: {result: number, nextIndex: number} = f(j, k);
     return{ result: new b.TextDecoder().decode(k.slice(j + l.nextIndex, j + l.nextIndex + l.result)), nextIndex: j + l.nextIndex + l.result };
   };
-  if (h === 0) {
+  const h: {result: number, nextIndex: number} = f(0, e);
+  const i: number = h.result;
+  if (i === 0) {
     response.send(getUser());
   }
-  if (h === 1) {
+  if (i === 1) {
     response.send(createUser());
   }
 }
