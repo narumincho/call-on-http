@@ -191,6 +191,66 @@ export const decodeInt32Code = expr.functionWithReturnValueVariableDefinition(
   ]
 );
 
+const decodeStringName = ["decodeString"];
+export const decodeStringVar = expr.localVariable(decodeStringName);
+
+/**
+ * バイナリからstringに変換するコード
+ * ブラウザではグローバルのTextDecoderを使い、node.jsではutilのTextDecoderを使う
+ */
+export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
+  expr.functionWithReturnValueVariableDefinition(
+    decodeStringName,
+    [
+      { name: ["index"], typeExpr: typeExpr.typeNumber },
+      { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
+    ],
+    resultAndNextIndexType(typeExpr.typeString),
+    [
+      expr.variableDefinition(
+        ["length"],
+        resultAndNextIndexType(typeExpr.typeNumber),
+        expr.call(expr.localVariable(decodeUInt32Name), [
+          expr.localVariable(["index"]),
+          expr.localVariable(["binary"])
+        ])
+      ),
+      resultAndNextIndexReturnStatement(
+        expr.callMethod(
+          expr.newExpr(
+            isBrowser
+              ? expr.globalVariable("TextDecoder")
+              : expr.importedVariable("util", "TextDecoder"),
+            []
+          ),
+          "decode",
+          [
+            expr.callMethod(expr.localVariable(["binary"]), "slice", [
+              expr.addition(
+                expr.localVariable(["index"]),
+                expr.get(expr.localVariable(["length"]), "nextIndex")
+              ),
+              expr.addition(
+                expr.addition(
+                  expr.localVariable(["index"]),
+                  expr.get(expr.localVariable(["length"]), "nextIndex")
+                ),
+                expr.get(expr.localVariable(["length"]), "result")
+              )
+            ])
+          ]
+        ),
+        expr.addition(
+          expr.addition(
+            expr.localVariable(["index"]),
+            expr.get(expr.localVariable(["length"]), "nextIndex")
+          ),
+          expr.get(expr.localVariable(["length"]), "result")
+        )
+      )
+    ]
+  );
+
 const memberListToObjectTypeExpr = <
   id extends type.RequestObjectId | type.ResponseObjectId
 >(
@@ -302,66 +362,6 @@ export const requestObjectTypeToTypeAlias = (
     }
   };
 };
-
-const decodeStringName = ["decodeString"];
-export const decodeStringVar = expr.localVariable(decodeStringName);
-
-/**
- * バイナリからstringに変換するコード
- * ブラウザではグローバルのTextDecoderを使い、node.jsではutilのTextDecoderを使う
- */
-export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
-  expr.functionWithReturnValueVariableDefinition(
-    decodeStringName,
-    [
-      { name: ["index"], typeExpr: typeExpr.typeNumber },
-      { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
-    ],
-    resultAndNextIndexType(typeExpr.typeString),
-    [
-      expr.variableDefinition(
-        ["length"],
-        resultAndNextIndexType(typeExpr.typeNumber),
-        expr.call(expr.localVariable(decodeUInt32Name), [
-          expr.localVariable(["index"]),
-          expr.localVariable(["binary"])
-        ])
-      ),
-      resultAndNextIndexReturnStatement(
-        expr.callMethod(
-          expr.newExpr(
-            isBrowser
-              ? expr.globalVariable("TextDecoder")
-              : expr.importedVariable("util", "TextDecoder"),
-            []
-          ),
-          "decode",
-          [
-            expr.callMethod(expr.localVariable(["binary"]), "slice", [
-              expr.addition(
-                expr.localVariable(["index"]),
-                expr.get(expr.localVariable(["length"]), "nextIndex")
-              ),
-              expr.addition(
-                expr.addition(
-                  expr.localVariable(["index"]),
-                  expr.get(expr.localVariable(["length"]), "nextIndex")
-                ),
-                expr.get(expr.localVariable(["length"]), "result")
-              )
-            ])
-          ]
-        ),
-        expr.addition(
-          expr.addition(
-            expr.localVariable(["index"]),
-            expr.get(expr.localVariable(["length"]), "nextIndex")
-          ),
-          expr.get(expr.localVariable(["length"]), "result")
-        )
-      )
-    ]
-  );
 
 const decodeObjectCodeName = <
   T extends type.RequestObjectId | type.ResponseObjectId
