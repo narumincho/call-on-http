@@ -1,5 +1,7 @@
 import * as type from "./type";
 import * as generator from "js-ts-code-generator";
+import { expr, typeExpr } from "js-ts-code-generator";
+import { TextDecoder } from "util";
 
 export const numberToUnsignedLeb128 = (num: number): ReadonlyArray<number> => {
   const numberArray = [];
@@ -15,38 +17,151 @@ export const numberToUnsignedLeb128 = (num: number): ReadonlyArray<number> => {
   return numberArray;
 };
 
-export const numberFromUnsignedLeb128 = (
+/**
+ * ```ts
+ * { result: T, nextIndex: number }
+ * ```
+ * を表現するコード
+ */
+export const resultAndNextIndexType = (
+  resultType: typeExpr.TypeExpr
+): typeExpr.TypeExpr =>
+  typeExpr.object(
+    new Map([
+      ["result", { typeExpr: resultType, document: "" }],
+      ["nextIndex", { typeExpr: typeExpr.typeNumber, document: "" }]
+    ])
+  );
+
+/**
+ * ```ts
+ * return { result: resultExpr, nextIndex: nextIndexExpr }
+ * ```
+ * を表現するコード
+ */
+export const resultAndNextIndexReturnStatement = (
+  resultExpr: expr.Expr,
+  nextIndexExpr: expr.Expr
+): expr.Statement =>
+  expr.returnStatement(
+    expr.objectLiteral(
+      new Map([
+        ["result", resultExpr],
+        ["nextIndex", nextIndexExpr]
+      ])
+    )
+  );
+
+/**
+ * UnsignedLeb128で表現されたバイナリをnumberの32bit符号なし整数の範囲の数値にに変換する
+ */
+export const decodeInt32 = (
   index: number,
   binary: Uint8Array
 ): { result: number; nextIndex: number } => {
   let result = 0;
 
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 5; i++) {
     const b = binary[index + i];
 
     result |= (b & 0x7f) << (7 * i);
-    if ((b & 0x80) === 0) {
+    if ((b & 0x80) === 0 && 0 <= result && result < 2 ** 32 - 1) {
       return { result, nextIndex: index + i + 1 };
     }
   }
-  throw new Error("larger than 64-bits");
+  throw new Error("larger than 32-bits");
 };
 
-const memberListToObjectTypeExpr = (
-  memberList: ReadonlyArray<{
-    id: type.MemberId;
-    name: string;
-    description: string;
-    type: type.Type<type.RequestObjectId>;
-  }>
+const decodeInt32Name = ["decodeInt32"];
+export const decodeInt32Var = expr.localVariable(decodeInt32Name);
+
+/**
+ * UnsignedLeb128で表現されたバイナリをnumberの32bit符号なし整数の範囲の数値にに変換するコード
+ */
+export const decodeInt32Code = expr.functionWithReturnValueVariableDefinition(
+  decodeInt32Name,
+  [
+    { name: ["index"], typeExpr: typeExpr.typeNumber },
+    { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
+  ],
+  resultAndNextIndexType(typeExpr.typeNumber),
+  [
+    expr.letVariableDefinition(
+      ["result"],
+      typeExpr.typeNumber,
+      expr.numberLiteral(0)
+    ),
+    expr.forStatement(["i"], expr.numberLiteral(5), [
+      expr.variableDefinition(
+        ["b"],
+        typeExpr.typeNumber,
+        expr.getByExpr(
+          expr.localVariable(["binary"]),
+          expr.addition(
+            expr.localVariable(["index"]),
+            expr.localVariable(["i"])
+          )
+        )
+      ),
+      expr.set(
+        expr.localVariable(["result"]),
+        "|",
+        expr.leftShift(
+          expr.bitwiseAnd(expr.localVariable(["b"]), expr.numberLiteral(0x7f)),
+          expr.multiplication(expr.numberLiteral(7), expr.localVariable(["i"]))
+        )
+      ),
+      expr.ifStatement(
+        expr.logicalAnd(
+          expr.logicalAnd(
+            expr.equal(
+              expr.bitwiseAnd(
+                expr.localVariable(["b"]),
+                expr.numberLiteral(0x08)
+              ),
+              expr.numberLiteral(0)
+            ),
+            expr.lessThanOrEqual(
+              expr.numberLiteral(0),
+              expr.localVariable(["result"])
+            )
+          ),
+          expr.lessThan(
+            expr.localVariable(["result"]),
+            expr.numberLiteral(2 ** 32 - 1)
+          )
+        ),
+        [
+          resultAndNextIndexReturnStatement(
+            expr.localVariable(["result"]),
+            expr.addition(
+              expr.addition(
+                expr.localVariable(["index"]),
+                expr.localVariable(["i"])
+              ),
+              expr.numberLiteral(1)
+            )
+          )
+        ]
+      )
+    ]),
+    expr.throwError("larger than 32-bits")
+  ]
+);
+
+const memberListToObjectTypeExpr = <
+  id extends type.RequestObjectId | type.ResponseObjectId
+>(
+  memberList: ReadonlyArray<type.Member<id>>,
+  typeIdNameDictionary: ReadonlyMap<id, string>
 ): ReadonlyArray<readonly [
   string,
-  { typeExpr: generator.typeExpr.TypeExpr; document: string }
+  { typeExpr: typeExpr.TypeExpr; document: string }
 ]> =>
   memberList.map(member => [
     member.name,
     {
-      typeExpr: generator.typeExpr.typeString,
+      typeExpr: typeToTypeExprVar(member.type, typeIdNameDictionary),
       document: "@id" + member.id.toString() + "\n" + member.description
     }
   ]);
@@ -71,7 +186,8 @@ const memberListToObjectTypeExpr = (
  *   *  ```
  */
 export const requestObjectTypeToTypeAlias = (
-  requestObjectType: type.RequestObject
+  requestObjectType: type.RequestObject,
+  typeIdNameDictionary: ReadonlyMap<type.RequestObjectId, string>
 ): {
   typeAlias: generator.ExportTypeAlias;
   exportConstEnum: {
@@ -93,8 +209,10 @@ export const requestObjectTypeToTypeAlias = (
           pattern.id.toString() +
           "\n" +
           requestObjectType.description,
-        typeExpr: generator.typeExpr.object(
-          new Map(memberListToObjectTypeExpr(pattern.memberList))
+        typeExpr: typeExpr.object(
+          new Map(
+            memberListToObjectTypeExpr(pattern.memberList, typeIdNameDictionary)
+          )
         )
       },
       exportConstEnum: null
@@ -108,9 +226,9 @@ export const requestObjectTypeToTypeAlias = (
         requestObjectType.id.toString() +
         "\n" +
         requestObjectType.description,
-      typeExpr: generator.typeExpr.union(
+      typeExpr: typeExpr.union(
         requestObjectType.patternList.map(pattern =>
-          generator.typeExpr.object(
+          typeExpr.object(
             new Map(
               [
                 [
@@ -123,7 +241,12 @@ export const requestObjectTypeToTypeAlias = (
                   string,
                   { typeExpr: generator.typeExpr.TypeExpr; document: string }
                 ]
-              ].concat(memberListToObjectTypeExpr(pattern.memberList))
+              ].concat(
+                memberListToObjectTypeExpr(
+                  pattern.memberList,
+                  typeIdNameDictionary
+                )
+              )
             )
           )
         )
@@ -137,3 +260,268 @@ export const requestObjectTypeToTypeAlias = (
     }
   };
 };
+
+export const decodeString = (
+  index: number,
+  binary: Uint8Array
+): { result: string; nextIndex: number } => {
+  const length = decodeInt32(index, binary);
+  return {
+    result: new TextDecoder().decode(
+      binary.slice(
+        index + length.nextIndex,
+        index + length.nextIndex + length.result
+      )
+    ),
+    nextIndex: index + length.nextIndex + length.result
+  };
+};
+
+const decodeStringName = ["decodeString"];
+export const decodeStringVar = expr.localVariable(decodeStringName);
+
+/**
+ * バイナリからstringに変換するコード
+ * ブラウザではグローバルの
+ * @param textDecoderExpr
+ * @param integerDecoderIndex
+ */
+export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
+  expr.functionWithReturnValueVariableDefinition(
+    decodeStringName,
+    [
+      { name: ["index"], typeExpr: typeExpr.typeNumber },
+      { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
+    ],
+    resultAndNextIndexType(typeExpr.typeString),
+    [
+      expr.variableDefinition(
+        ["length"],
+        resultAndNextIndexType(typeExpr.typeNumber),
+        expr.call(expr.localVariable(decodeInt32Name), [
+          expr.localVariable(["index"]),
+          expr.localVariable(["binary"])
+        ])
+      ),
+      resultAndNextIndexReturnStatement(
+        expr.callMethod(
+          expr.newExpr(
+            isBrowser
+              ? expr.globalVariable("TextDecoder")
+              : expr.importedVariable("util", "TextDecoder"),
+            []
+          ),
+          "decode",
+          [
+            expr.callMethod(expr.localVariable(["binary"]), "slice", [
+              expr.addition(
+                expr.localVariable(["index"]),
+                expr.get(expr.localVariable(["length"]), "nextIndex")
+              ),
+              expr.addition(
+                expr.addition(
+                  expr.localVariable(["index"]),
+                  expr.get(expr.localVariable(["length"]), "nextIndex")
+                ),
+                expr.get(expr.localVariable(["length"]), "result")
+              )
+            ])
+          ]
+        ),
+        expr.addition(
+          expr.addition(
+            expr.localVariable(["index"]),
+            expr.get(expr.localVariable(["length"]), "nextIndex")
+          ),
+          expr.get(expr.localVariable(["length"]), "result")
+        )
+      )
+    ]
+  );
+
+const decodeObjectCodeName = <
+  T extends type.RequestObjectId | type.ResponseObjectId
+>(
+  requestObjectId: T
+): ReadonlyArray<string> => ["objectDecode", requestObjectId.toString()];
+
+export const decodeRequestObjectCodeVar = (
+  requestObjectId: type.RequestObjectId
+): expr.Expr => expr.localVariable(decodeObjectCodeName(requestObjectId));
+
+export const decodeRequestObjectCode = (
+  requestObject: type.RequestObject,
+  typeIdNameDictionary: ReadonlyMap<type.RequestObjectId, string>
+): expr.Statement =>
+  expr.functionWithReturnValueVariableDefinition(
+    decodeObjectCodeName(requestObject.id),
+    [
+      {
+        name: ["index"],
+        typeExpr: typeExpr.typeNumber
+      },
+      {
+        name: ["binary"],
+        typeExpr: typeExpr.globalType("Uint8Array")
+      }
+    ],
+    resultAndNextIndexType(typeExpr.globalType(requestObject.name)),
+    [
+      expr.variableDefinition(
+        ["patternIdAndIndex"],
+        resultAndNextIndexType(typeExpr.typeNumber),
+        expr.call(decodeInt32Var, [
+          expr.localVariable(["index"]),
+          expr.localVariable(["binary"])
+        ])
+      ),
+      expr.variableDefinition(
+        ["patternId"],
+        typeExpr.typeNumber,
+        expr.get(expr.localVariable(["patternIdAndIndex"]), "result")
+      ),
+      ...requestObject.patternList.map(pattern =>
+        expr.ifStatement(
+          expr.equal(
+            expr.localVariable(["patternId"]),
+            expr.numberLiteral(pattern.id)
+          ),
+          decodePatternCode(
+            expr.get(expr.localVariable(["patternIdAndIndex"]), "nextIndex"),
+            expr.localVariable(["binary"]),
+            pattern,
+            typeIdNameDictionary
+          )
+        )
+      ),
+      expr.throwError("サポートされていなパターンです")
+    ]
+  );
+
+const decodePatternCode = <
+  T extends type.RequestObjectId | type.ResponseObjectId
+>(
+  indexExpr: expr.Expr,
+  binaryExpr: expr.Expr,
+  pattern: type.Pattern<T>,
+  typeIdNameDictionary: ReadonlyMap<T, string>
+): ReadonlyArray<expr.Statement> => {
+  const memberDecodeCode = pattern.memberList.reduce<{
+    decodeCode: ReadonlyArray<expr.Statement>;
+    beforeIndex: expr.Expr;
+  }>(
+    (state, member) => ({
+      decodeCode: state.decodeCode.concat([
+        expr.variableDefinition(
+          ["decoded", member.name],
+          resultAndNextIndexType(
+            typeToTypeExprVar(member.type, typeIdNameDictionary)
+          ),
+          expr.call(typeToDecodeVar(member.type), [
+            state.beforeIndex,
+            binaryExpr
+          ])
+        )
+      ]),
+      beforeIndex: expr.get(
+        expr.localVariable(["decoded", member.name]),
+        "nextIndex"
+      )
+    }),
+    {
+      decodeCode: [],
+      beforeIndex: indexExpr
+    }
+  );
+  const returnCode = resultAndNextIndexReturnStatement(
+    memberDecodeCode.beforeIndex,
+    expr.objectLiteral(
+      new Map(
+        pattern.memberList.map(member => [
+          member.name,
+          expr.get(expr.localVariable(["decoded", member.name]), "result")
+        ])
+      )
+    )
+  );
+  return memberDecodeCode.decodeCode.concat([returnCode]);
+};
+
+export const typeToDecodeVar = <
+  T extends type.RequestObjectId | type.ResponseObjectId
+>(
+  objectType: type.Type<T>
+): expr.Expr => {
+  switch (objectType._) {
+    case type.Type_.Integer:
+      return decodeInt32Var;
+    case type.Type_.String:
+      return decodeStringVar;
+    case type.Type_.DateTime:
+      return expr.stringLiteral("DateTimeはまだサポートしていない");
+    case type.Type_.List:
+      return expr.stringLiteral("Listはまだサポートしていない");
+    case type.Type_.Id:
+      return expr.stringLiteral("IDはまだサポートしていない");
+    case type.Type_.Hash:
+      return expr.stringLiteral("Hashはまだサポートしていない");
+    case type.Type_.Object:
+      return expr.localVariable(decodeObjectCodeName(objectType.objectId));
+  }
+};
+
+export const typeToTypeExprVar = <
+  T extends type.RequestObjectId | type.ResponseObjectId
+>(
+  objectType: type.Type<T>,
+  typeIdNameDictionary: ReadonlyMap<T, string>
+): typeExpr.TypeExpr => {
+  switch (objectType._) {
+    case type.Type_.Integer:
+      return typeExpr.typeNumber;
+    case type.Type_.String:
+      return typeExpr.typeString;
+    case type.Type_.DateTime:
+      return typeExpr.globalType("Date");
+    case type.Type_.List:
+      return typeExpr.withTypeParameter(typeExpr.globalType("ReadonlyArray"), [
+        typeToTypeExprVar(objectType.type, typeIdNameDictionary)
+      ]);
+    case type.Type_.Id:
+      return typeExpr.typeNull; // TODO
+    case type.Type_.Hash:
+      return typeExpr.typeNull; // TODO
+    case type.Type_.Object: {
+      const objectTypeName = typeIdNameDictionary.get(objectType.objectId);
+      if (objectTypeName === undefined) {
+        throw Error(
+          "存在しないオブジェクトのIDが指定されている id=" +
+            objectType.objectId.toString()
+        );
+      }
+      return typeExpr.globalType(objectTypeName);
+    }
+  }
+};
+
+/*
+  {
+  const patternIdAndNextIndex = numberFromUnsignedLeb128(index, binary);
+  const patternId = patternIdAndNextIndex.result;
+  if (patternId === 0) {
+    const nameAndNextIndex = stringDecoder(
+      patternIdAndNextIndex.nextIndex,
+      binary
+    );
+    const ageAndNextIndex = numberFromUnsignedLeb128(
+      nameAndNextIndex.nextIndex,
+      binary
+    );
+    const result = createUser(
+      nameAndNextIndex.result,
+      ageAndNextIndex.nextIndex
+    );
+  }
+}
+
+*/

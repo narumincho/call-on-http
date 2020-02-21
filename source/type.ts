@@ -68,16 +68,20 @@ export type RequestObject = {
   id: RequestObjectId;
   name: string;
   description: string;
-  patternList: ReadonlyArray<{
-    id: PatternId;
-    name: string;
-    memberList: ReadonlyArray<{
-      id: MemberId;
-      name: string;
-      description: string;
-      type: Type<RequestObjectId>;
-    }>;
-  }>;
+  patternList: ReadonlyArray<Pattern<RequestObjectId>>;
+};
+
+export type Pattern<id extends RequestObjectId | ResponseObjectId> = {
+  id: PatternId;
+  name: string;
+  memberList: ReadonlyArray<Member<id>>;
+};
+
+export type Member<id extends RequestObjectId | ResponseObjectId> = {
+  id: MemberId;
+  name: string;
+  description: string;
+  type: Type<id>;
 };
 
 export type Type<id extends RequestObjectId | ResponseObjectId> =
@@ -103,16 +107,7 @@ export type ResponseObject = {
   name: string;
   description: string;
   cacheType: CacheType;
-  patternList: ReadonlyArray<{
-    id: PatternId;
-    name: string;
-    memberList: ReadonlyArray<{
-      id: MemberId;
-      name: string;
-      description: string;
-      type: Type<ResponseObjectId>;
-    }>;
-  }>;
+  patternList: ReadonlyArray<Pattern<ResponseObjectId>>;
 };
 
 export const enum Type_ {
