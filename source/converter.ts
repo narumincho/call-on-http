@@ -1,4 +1,4 @@
-import { TextDecoder } from "util";
+import { TextDecoder, TextEncoder } from "util";
 
 /*
  * 各データのエンコーダ、デコーダーが書かれている
@@ -39,6 +39,10 @@ export const decodeUInt32 = (
     }
   }
   throw new Error("larger than 32-bits");
+};
+
+export const encodeString = (text: string): ReadonlyArray<number> => {
+  return Array.from(new TextEncoder().encode(text));
 };
 
 export const decodeString = (
