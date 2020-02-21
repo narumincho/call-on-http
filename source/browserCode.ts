@@ -1,7 +1,7 @@
 import { expr, typeExpr } from "js-ts-code-generator";
 import * as generator from "js-ts-code-generator";
 import * as type from "./type";
-import * as binary from "./binary";
+import * as converter from "./converter";
 import { URL } from "url";
 
 const responseType = typeExpr.globalType("Response");
@@ -57,7 +57,7 @@ const httpRequestFunction = (
     expr.evaluateExpr(
       expr.callMethod(
         expr.callMethod(
-          fetchWithBody(url, binary.encodeInt32(functionId)),
+          fetchWithBody(url, converter.encodeUInt32(functionId)),
           "then",
           [
             expr.lambdaReturnVoid(
