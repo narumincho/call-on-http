@@ -60,3 +60,15 @@ export const decodeString = (
     nextIndex: index + length.nextIndex + length.result
   };
 };
+
+export const encodeBoolean = (value: boolean): ReadonlyArray<number> => [
+  value ? 1 : 0
+];
+
+export const decodeBoolean = (
+  index: number,
+  binary: Uint8Array
+): { result: boolean; nextIndex: number } => ({
+  result: binary[index] !== 0,
+  nextIndex: index + 1
+});
