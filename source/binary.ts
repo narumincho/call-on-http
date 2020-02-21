@@ -34,6 +34,25 @@ export const resultAndNextIndexType = (
   );
 
 /**
+ * ```ts
+ * return { result: resultExpr, nextIndex: nextIndexExpr }
+ * ```
+ * を表現するコード
+ */
+export const resultAndNextIndexReturnStatement = (
+  resultExpr: expr.Expr,
+  nextIndexExpr: expr.Expr
+): expr.Statement =>
+  expr.returnStatement(
+    expr.objectLiteral(
+      new Map([
+        ["result", resultExpr],
+        ["nextIndex", nextIndexExpr]
+      ])
+    )
+  );
+
+/**
  * UnsignedLeb128で表現されたバイナリをnumberの32bit符号なし整数の範囲の数値にに変換する
  */
 export const decodeInt32 = (
@@ -113,21 +132,14 @@ export const decodeInt32Code = expr.functionWithReturnValueVariableDefinition(
           )
         ),
         [
-          expr.returnStatement(
-            expr.objectLiteral(
-              new Map([
-                ["result", expr.localVariable(["result"])],
-                [
-                  "nextIndex",
-                  expr.addition(
-                    expr.addition(
-                      expr.localVariable(["index"]),
-                      expr.localVariable(["i"])
-                    ),
-                    expr.numberLiteral(1)
-                  )
-                ]
-              ])
+          resultAndNextIndexReturnStatement(
+            expr.localVariable(["result"]),
+            expr.addition(
+              expr.addition(
+                expr.localVariable(["index"]),
+                expr.localVariable(["i"])
+              ),
+              expr.numberLiteral(1)
             )
           )
         ]
@@ -140,7 +152,8 @@ export const decodeInt32Code = expr.functionWithReturnValueVariableDefinition(
 const memberListToObjectTypeExpr = <
   id extends type.RequestObjectId | type.ResponseObjectId
 >(
-  memberList: ReadonlyArray<type.Member<id>>
+  memberList: ReadonlyArray<type.Member<id>>,
+  typeIdNameDictionary: ReadonlyMap<id, string>
 ): ReadonlyArray<readonly [
   string,
   { typeExpr: typeExpr.TypeExpr; document: string }
@@ -148,7 +161,7 @@ const memberListToObjectTypeExpr = <
   memberList.map(member => [
     member.name,
     {
-      typeExpr: typeToTypeExpr(member.type),
+      typeExpr: typeToTypeExprVar(member.type, typeIdNameDictionary),
       document: "@id" + member.id.toString() + "\n" + member.description
     }
   ]);
@@ -173,7 +186,8 @@ const memberListToObjectTypeExpr = <
  *   *  ```
  */
 export const requestObjectTypeToTypeAlias = (
-  requestObjectType: type.RequestObject
+  requestObjectType: type.RequestObject,
+  typeIdNameDictionary: ReadonlyMap<type.RequestObjectId, string>
 ): {
   typeAlias: generator.ExportTypeAlias;
   exportConstEnum: {
@@ -197,7 +211,7 @@ export const requestObjectTypeToTypeAlias = (
           requestObjectType.description,
         typeExpr: typeExpr.object(
           new Map(
-            memberListToObjectTypeExpr<type.RequestObjectId>(pattern.memberList)
+            memberListToObjectTypeExpr(pattern.memberList, typeIdNameDictionary)
           )
         )
       },
@@ -227,7 +241,12 @@ export const requestObjectTypeToTypeAlias = (
                   string,
                   { typeExpr: generator.typeExpr.TypeExpr; document: string }
                 ]
-              ].concat(memberListToObjectTypeExpr(pattern.memberList))
+              ].concat(
+                memberListToObjectTypeExpr(
+                  pattern.memberList,
+                  typeIdNameDictionary
+                )
+              )
             )
           )
         )
@@ -258,8 +277,8 @@ export const decodeString = (
   };
 };
 
-const decodeStringCodeName = ["decodeString"];
-export const decodeStringVar = expr.localVariable(decodeStringCodeName);
+const decodeStringName = ["decodeString"];
+export const decodeStringVar = expr.localVariable(decodeStringName);
 
 /**
  * バイナリからstringに変換するコード
@@ -269,7 +288,7 @@ export const decodeStringVar = expr.localVariable(decodeStringCodeName);
  */
 export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
   expr.functionWithReturnValueVariableDefinition(
-    decodeStringCodeName,
+    decodeStringName,
     [
       { name: ["index"], typeExpr: typeExpr.typeNumber },
       { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
@@ -284,38 +303,21 @@ export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
           expr.localVariable(["binary"])
         ])
       ),
-      expr.returnStatement(
-        expr.objectLiteral(
-          new Map([
-            [
-              "result",
-              expr.callMethod(
-                expr.newExpr(
-                  isBrowser
-                    ? expr.globalVariable("TextDecoder")
-                    : expr.importedVariable("util", "TextDecoder"),
-                  []
-                ),
-                "decode",
-                [
-                  expr.callMethod(expr.localVariable(["binary"]), "slice", [
-                    expr.addition(
-                      expr.localVariable(["index"]),
-                      expr.get(expr.localVariable(["length"]), "nextIndex")
-                    ),
-                    expr.addition(
-                      expr.addition(
-                        expr.localVariable(["index"]),
-                        expr.get(expr.localVariable(["length"]), "nextIndex")
-                      ),
-                      expr.get(expr.localVariable(["length"]), "result")
-                    )
-                  ])
-                ]
-              )
-            ],
-            [
-              "nextIndex",
+      resultAndNextIndexReturnStatement(
+        expr.callMethod(
+          expr.newExpr(
+            isBrowser
+              ? expr.globalVariable("TextDecoder")
+              : expr.importedVariable("util", "TextDecoder"),
+            []
+          ),
+          "decode",
+          [
+            expr.callMethod(expr.localVariable(["binary"]), "slice", [
+              expr.addition(
+                expr.localVariable(["index"]),
+                expr.get(expr.localVariable(["length"]), "nextIndex")
+              ),
               expr.addition(
                 expr.addition(
                   expr.localVariable(["index"]),
@@ -323,8 +325,15 @@ export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
                 ),
                 expr.get(expr.localVariable(["length"]), "result")
               )
-            ]
-          ])
+            ])
+          ]
+        ),
+        expr.addition(
+          expr.addition(
+            expr.localVariable(["index"]),
+            expr.get(expr.localVariable(["length"]), "nextIndex")
+          ),
+          expr.get(expr.localVariable(["length"]), "result")
         )
       )
     ]
@@ -337,11 +346,12 @@ const decodeObjectCodeName = <
 ): ReadonlyArray<string> => ["objectDecode", requestObjectId.toString()];
 
 export const decodeRequestObjectCodeVar = (
-  requestObject: type.RequestObject
-): expr.Expr => expr.localVariable(decodeObjectCodeName(requestObject.id));
+  requestObjectId: type.RequestObjectId
+): expr.Expr => expr.localVariable(decodeObjectCodeName(requestObjectId));
 
 export const decodeRequestObjectCode = (
-  requestObject: type.RequestObject
+  requestObject: type.RequestObject,
+  typeIdNameDictionary: ReadonlyMap<type.RequestObjectId, string>
 ): expr.Statement =>
   expr.functionWithReturnValueVariableDefinition(
     decodeObjectCodeName(requestObject.id),
@@ -376,31 +386,65 @@ export const decodeRequestObjectCode = (
             expr.localVariable(["patternId"]),
             expr.numberLiteral(pattern.id)
           ),
-          []
+          decodePatternCode(
+            expr.get(expr.localVariable(["patternIdAndIndex"]), "nextIndex"),
+            expr.localVariable(["binary"]),
+            pattern,
+            typeIdNameDictionary
+          )
         )
-      )
+      ),
+      expr.throwError("サポートされていなパターンです")
     ]
   );
 
-const decodePatternCode = (pattern: type.Pattern) => {
-  pattern.memberList.reduce(
-    (beforeIndex, member) => ({
-      decodeCode: beforeIndex.decodeCode.concat([
+const decodePatternCode = <
+  T extends type.RequestObjectId | type.ResponseObjectId
+>(
+  indexExpr: expr.Expr,
+  binaryExpr: expr.Expr,
+  pattern: type.Pattern<T>,
+  typeIdNameDictionary: ReadonlyMap<T, string>
+): ReadonlyArray<expr.Statement> => {
+  const memberDecodeCode = pattern.memberList.reduce<{
+    decodeCode: ReadonlyArray<expr.Statement>;
+    beforeIndex: expr.Expr;
+  }>(
+    (state, member) => ({
+      decodeCode: state.decodeCode.concat([
         expr.variableDefinition(
-          ["decode", member.id],
-          resultAndNextIndexType(32)
+          ["decoded", member.name],
+          resultAndNextIndexType(
+            typeToTypeExprVar(member.type, typeIdNameDictionary)
+          ),
+          expr.call(typeToDecodeVar(member.type), [
+            state.beforeIndex,
+            binaryExpr
+          ])
         )
       ]),
-      beforeIndex: expr.get(expr.localVariable([""]), "nextIndex")
+      beforeIndex: expr.get(
+        expr.localVariable(["decoded", member.name]),
+        "nextIndex"
+      )
     }),
     {
       decodeCode: [],
-      beforeIndex: expr.get(
-        expr.localVariable(["patternIdAndIndex"]),
-        "nextIndex"
-      )
+      beforeIndex: indexExpr
     }
   );
+  const returnCode = resultAndNextIndexReturnStatement(
+    memberDecodeCode.beforeIndex,
+    expr.objectLiteral(
+      new Map(
+        pattern.memberList.map(member => [
+          member.name,
+          expr.get(expr.localVariable(["decoded", member.name]), "result")
+        ])
+      )
+    )
+  );
+  return memberDecodeCode.decodeCode.concat([returnCode]);
 };
 
 export const typeToDecodeVar = <
@@ -426,10 +470,11 @@ export const typeToDecodeVar = <
   }
 };
 
-export const typeToTypeExpr = <
+export const typeToTypeExprVar = <
   T extends type.RequestObjectId | type.ResponseObjectId
 >(
-  objectType: type.Type<T>
+  objectType: type.Type<T>,
+  typeIdNameDictionary: ReadonlyMap<T, string>
 ): typeExpr.TypeExpr => {
   switch (objectType._) {
     case type.Type_.Integer:
@@ -440,14 +485,22 @@ export const typeToTypeExpr = <
       return typeExpr.globalType("Date");
     case type.Type_.List:
       return typeExpr.withTypeParameter(typeExpr.globalType("ReadonlyArray"), [
-        typeToTypeExpr(objectType.type)
+        typeToTypeExprVar(objectType.type, typeIdNameDictionary)
       ]);
     case type.Type_.Id:
       return typeExpr.typeNull; // TODO
     case type.Type_.Hash:
       return typeExpr.typeNull; // TODO
-    case type.Type_.Object:
-      return typeExpr.typeNull; // TODO
+    case type.Type_.Object: {
+      const objectTypeName = typeIdNameDictionary.get(objectType.objectId);
+      if (objectTypeName === undefined) {
+        throw Error(
+          "存在しないオブジェクトのIDが指定されている id=" +
+            objectType.objectId.toString()
+        );
+      }
+      return typeExpr.globalType(objectTypeName);
+    }
   }
 };
 

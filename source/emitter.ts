@@ -32,6 +32,13 @@ export const emit = (api: type.Api): string => {
   const functionIdName = ["functionId"];
   const functionId = expr.localVariable(functionIdName);
 
+  const typeIdNameDictionary = new Map(
+    api.requestObjectList.map(requestObject => [
+      requestObject.id,
+      requestObject.name
+    ])
+  );
+
   const middleware = generator.exportFunction({
     name: "middleware",
     parameterList: [
@@ -46,6 +53,7 @@ export const emit = (api: type.Api): string => {
         typeExpr: expressType.Response
       }
     ],
+    document: "ミドルウェア",
     returnType: null,
     statementList: [
       expr.variableDefinition(
@@ -90,7 +98,6 @@ app.use(path, out.middleware);`)
         expr.newExpr(expr.globalVariable("Uint8Array"), [body])
       ),
       binary.decodeInt32Code,
-      binary.decodeStringCode(false),
       expr.variableDefinition(
         functionIdAndIndexName,
         binary.resultAndNextIndexType(typeExpr.typeNumber),
@@ -101,33 +108,61 @@ app.use(path, out.middleware);`)
         typeExpr.typeNumber,
         expr.get(functionIdAndIndex, "result")
       ),
+      binary.decodeStringCode(false),
+      ...api.requestObjectList.map(requestObject =>
+        binary.decodeRequestObjectCode(requestObject, typeIdNameDictionary)
+      ),
       ...api.functionList.map(apiFunction =>
         expr.ifStatement(
           expr.equal(functionId, expr.numberLiteral(apiFunction.id)),
           [
             expr.evaluateExpr(
               expr.callMethod(response, "send", [
-                expr.call(expr.globalVariable(apiFunction.name), [])
+                expr.call(expr.globalVariable(apiFunction.name), [
+                  expr.get(
+                    expr.call(
+                      binary.decodeRequestObjectCodeVar(apiFunction.request),
+                      [expr.get(functionIdAndIndex, "nextIndex"), requestBinary]
+                    ),
+                    "result"
+                  )
+                ])
               ])
             )
           ]
         )
       )
-    ],
-    document: "ミドルウェア"
+    ]
   });
 
   const requestTypeAliasAndMaybeConstEnumList = api.requestObjectList.map(
-    requestObjectType => binary.requestObjectTypeToTypeAlias(requestObjectType)
+    requestObjectType =>
+      binary.requestObjectTypeToTypeAlias(
+        requestObjectType,
+        typeIdNameDictionary
+      )
   );
 
   const serverCodeTemplate: ReadonlyArray<generator.ExportFunction> = api.functionList.map(
-    apiFunction =>
-      generator.exportFunction({
+    apiFunction => {
+      const parameterTypeName = typeIdNameDictionary.get(apiFunction.request);
+      if (parameterTypeName === undefined) {
+        throw new Error(
+          "パラメータで与えられたIDの型を見つけることができなかった id=" +
+            apiFunction.request.toString()
+        );
+      }
+      return generator.exportFunction({
         name: apiFunction.name,
         document:
           "@id " + apiFunction.id.toString() + "\n" + apiFunction.description,
-        parameterList: [],
+        parameterList: [
+          {
+            name: "request",
+            document: "",
+            typeExpr: typeExpr.globalType(parameterTypeName)
+          }
+        ],
         returnType: generator.typeExpr.typeString,
         statementList: [
           expr.returnStatement(
@@ -136,7 +171,8 @@ app.use(path, out.middleware);`)
             )
           )
         ]
-      })
+      });
+    }
   );
   const exportConstEnumMap: Map<
     string,

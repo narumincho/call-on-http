@@ -74,7 +74,7 @@ export type RequestObject = {
 export type Pattern<id extends RequestObjectId | ResponseObjectId> = {
   id: PatternId;
   name: string;
-  memberList: ReadonlyArray<id>;
+  memberList: ReadonlyArray<Member<id>>;
 };
 
 export type Member<id extends RequestObjectId | ResponseObjectId> = {
