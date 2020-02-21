@@ -191,6 +191,32 @@ export const decodeInt32Code = expr.functionWithReturnValueVariableDefinition(
   ]
 );
 
+const encodeStringName = ["encodeString"];
+export const encodeStringVar = expr.localVariable(encodeStringName);
+
+export const encodeStringCode = (isBrowser: boolean): expr.Statement =>
+  expr.functionWithReturnValueVariableDefinition(
+    encodeStringName,
+    [{ name: ["text"], typeExpr: typeExpr.typeString }],
+    readonlyArrayNumber,
+    [
+      expr.returnStatement(
+        expr.callMethod(expr.globalVariable("Array"), "from", [
+          expr.callMethod(
+            expr.newExpr(
+              isBrowser
+                ? expr.globalVariable("TextEncoder")
+                : expr.importedVariable("util", "TextEncoder"),
+              []
+            ),
+            "encode",
+            [expr.localVariable(["text"])]
+          )
+        ])
+      )
+    ]
+  );
+
 const decodeStringName = ["decodeString"];
 export const decodeStringVar = expr.localVariable(decodeStringName);
 
