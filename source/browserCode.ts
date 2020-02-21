@@ -57,7 +57,7 @@ const httpRequestFunction = (
     expr.evaluateExpr(
       expr.callMethod(
         expr.callMethod(
-          fetchWithBody(url, binary.numberToUnsignedLeb128(functionId)),
+          fetchWithBody(url, binary.encodeInt32(functionId)),
           "then",
           [
             expr.lambdaReturnVoid(

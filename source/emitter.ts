@@ -101,7 +101,10 @@ app.use(path, out.middleware);`)
       expr.variableDefinition(
         functionIdAndIndexName,
         binary.resultAndNextIndexType(typeExpr.typeNumber),
-        expr.call(binary.decodeInt32Var, [expr.numberLiteral(0), requestBinary])
+        expr.call(binary.decodeUInt32Var, [
+          expr.numberLiteral(0),
+          requestBinary
+        ])
       ),
       expr.variableDefinition(
         functionIdName,
@@ -372,7 +375,7 @@ const requestTypeToHtml = (
   switch (type_._) {
     case type.Type_.String:
       return h.div({}, "string");
-    case type.Type_.Integer:
+    case type.Type_.UInt32:
       return h.div({}, "integer");
     case type.Type_.DateTime:
       return h.div({}, "dateTime");
@@ -409,7 +412,7 @@ const responseTypeToHtml = (
   switch (type_._) {
     case type.Type_.String:
       return h.div({}, "string");
-    case type.Type_.Integer:
+    case type.Type_.UInt32:
       return h.div({}, "integer");
     case type.Type_.DateTime:
       return h.div({}, "dateTime");

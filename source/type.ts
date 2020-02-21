@@ -89,7 +89,7 @@ export type Type<id extends RequestObjectId | ResponseObjectId> =
       _: Type_.String;
     }
   | {
-      _: Type_.Integer;
+      _: Type_.UInt32;
     }
   | {
       _: Type_.DateTime;
@@ -112,7 +112,7 @@ export type ResponseObject = {
 
 export const enum Type_ {
   String,
-  Integer,
+  UInt32,
   DateTime,
   List,
   Id,
@@ -125,7 +125,7 @@ export const stringType: Type<RequestObjectId & ResponseObjectId> = {
 };
 
 export const integerType: Type<RequestObjectId & ResponseObjectId> = {
-  _: Type_.Integer
+  _: Type_.UInt32
 };
 
 export const dateTimeType: Type<RequestObjectId & ResponseObjectId> = {
