@@ -47,6 +47,14 @@ const readonlyArrayNumber: typeExpr.TypeExpr = typeExpr.withTypeParameter(
   [typeExpr.typeNumber]
 );
 
+const decodeParameterList: ReadonlyArray<{
+  name: ReadonlyArray<string>;
+  typeExpr: typeExpr.TypeExpr;
+}> = [
+  { name: ["index"], typeExpr: typeExpr.typeNumber },
+  { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
+];
+
 const encodeUInt32Name = ["decodeUInt32"];
 export const encodeUInt32Var = expr.localVariable(encodeUInt32Name);
 const mathObject = expr.globalVariable("Math");
@@ -122,10 +130,7 @@ export const decodeUInt32Var = expr.localVariable(decodeUInt32Name);
  */
 export const decodeInt32Code = expr.functionWithReturnValueVariableDefinition(
   decodeUInt32Name,
-  [
-    { name: ["index"], typeExpr: typeExpr.typeNumber },
-    { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
-  ],
+  decodeParameterList,
   resultAndNextIndexType(typeExpr.typeNumber),
   [
     expr.letVariableDefinition(
@@ -227,10 +232,7 @@ export const decodeStringVar = expr.localVariable(decodeStringName);
 export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
   expr.functionWithReturnValueVariableDefinition(
     decodeStringName,
-    [
-      { name: ["index"], typeExpr: typeExpr.typeNumber },
-      { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
-    ],
+    decodeParameterList,
     resultAndNextIndexType(typeExpr.typeString),
     [
       expr.variableDefinition(
@@ -276,6 +278,47 @@ export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
       )
     ]
   );
+
+const encodeBooleanName = ["encodeBoolean"];
+export const encodeBooleanVar = expr.localVariable(encodeBooleanName);
+
+export const encodeBooleanCode = expr.functionWithReturnValueVariableDefinition(
+  encodeBooleanName,
+  [{ name: ["value"], typeExpr: typeExpr.typeBoolean }],
+  readonlyArrayNumber,
+  [
+    expr.returnStatement(
+      expr.arrayLiteral([
+        expr.conditionalOperator(
+          expr.localVariable(["value"]),
+          expr.numberLiteral(1),
+          expr.numberLiteral(0)
+        )
+      ])
+    )
+  ]
+);
+
+const decodeBooleanName = ["decodeBoolean"];
+export const decodeBooleanVar = expr.localVariable(decodeBooleanName);
+
+export const decodeBooleanCode = expr.functionWithReturnValueVariableDefinition(
+  decodeBooleanName,
+  decodeParameterList,
+  resultAndNextIndexType(typeExpr.typeBoolean),
+  [
+    resultAndNextIndexReturnStatement(
+      expr.notEqual(
+        expr.getByExpr(
+          expr.localVariable(["binary"]),
+          expr.localVariable(["index"])
+        ),
+        expr.numberLiteral(0)
+      ),
+      expr.addition(expr.localVariable(["index"]), expr.numberLiteral(1))
+    )
+  ]
+);
 
 const memberListToObjectTypeExpr = <
   id extends type.RequestObjectId | type.ResponseObjectId
