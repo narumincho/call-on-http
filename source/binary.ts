@@ -55,6 +55,11 @@ const decodeParameterList: ReadonlyArray<{
   { name: ["binary"], typeExpr: typeExpr.globalType("Uint8Array") }
 ];
 
+/* ========================================
+                  Int32
+   ========================================
+*/
+
 const encodeUInt32Name = ["decodeUInt32"];
 export const encodeUInt32Var = expr.localVariable(encodeUInt32Name);
 const mathObject = expr.globalVariable("Math");
@@ -195,6 +200,10 @@ export const decodeInt32Code = expr.functionWithReturnValueVariableDefinition(
     expr.throwError("larger than 32-bits")
   ]
 );
+/* ========================================
+                  String
+   ========================================
+*/
 
 const encodeStringName = ["encodeString"];
 export const encodeStringVar = expr.localVariable(encodeStringName);
@@ -278,6 +287,10 @@ export const decodeStringCode = (isBrowser: boolean): expr.Statement =>
       )
     ]
   );
+/* ========================================
+                  Boolean
+   ========================================
+*/
 
 const encodeBooleanName = ["encodeBoolean"];
 export const encodeBooleanVar = expr.localVariable(encodeBooleanName);
@@ -319,6 +332,10 @@ export const decodeBooleanCode = expr.functionWithReturnValueVariableDefinition(
     )
   ]
 );
+/* ========================================
+                  Id
+   ========================================
+*/
 
 const encodeIdName = (requestObjectName: string): ReadonlyArray<string> => [
   "encodeId",
@@ -331,6 +348,22 @@ const encodeIdVar = (requestObjectName: string): expr.Expr =>
 export const encodeIdCode = (requestObjectName: string): expr.Statement =>
   encodeHexString(16, encodeIdName(requestObjectName));
 
+const decodeIdName = (requestObjectName: string): ReadonlyArray<string> => [
+  "decodeId",
+  requestObjectName
+];
+
+const deocdeIdVar = (requestObjectName: string): expr.Expr =>
+  expr.localVariable(decodeIdName(requestObjectName));
+
+export const decodeIdCode = (requestObjectName: string): expr.Statement =>
+  decodeHexString(16, decodeIdName(requestObjectName));
+
+/* ========================================
+                  Hash
+   ========================================
+*/
+
 const encodeHashName = (requestObjectName: string): ReadonlyArray<string> => [
   "encodeHash",
   requestObjectName
@@ -341,6 +374,22 @@ const encodeHashVar = (requestObjectName: string): expr.Expr =>
 
 export const encodeHashCode = (requestObjectName: string): expr.Statement =>
   encodeHexString(32, encodeHashName(requestObjectName));
+
+const decodeHashName = (requestObjectName: string): ReadonlyArray<string> => [
+  "decodeHash",
+  requestObjectName
+];
+
+const decodeHashVar = (requestObjectName: string): expr.Expr =>
+  expr.localVariable(encodeHashName(requestObjectName));
+
+export const decodeHashCode = (requestObjectName: string): expr.Statement =>
+  decodeHexString(32, decodeHashName(requestObjectName));
+
+/* ========================================
+            HexString (Id / Hash)
+   ========================================
+*/
 
 const encodeHexString = (
   byteSize: number,
@@ -383,6 +432,62 @@ const encodeHexString = (
           ])
         )
       ])
+    ]
+  );
+
+const decodeHexString = (
+  byteSize: number,
+  functionName: ReadonlyArray<string>
+): expr.Statement =>
+  expr.functionWithReturnValueVariableDefinition(
+    functionName,
+    decodeParameterList,
+    resultAndNextIndexType(typeExpr.typeString),
+    [
+      resultAndNextIndexReturnStatement(
+        expr.callMethod(expr.globalVariable("Array"), "from", [
+          expr.callMethod(
+            expr.callMethod(
+              expr.callMethod(expr.localVariable(["binary"]), "slice", [
+                expr.localVariable(["index"]),
+                expr.addition(
+                  expr.localVariable(["index"]),
+                  expr.numberLiteral(byteSize)
+                )
+              ]),
+              "map",
+              [
+                expr.lambdaWithReturn(
+                  [
+                    {
+                      name: ["n"],
+                      typeExpr: typeExpr.typeNumber
+                    }
+                  ],
+                  typeExpr.typeString,
+                  [
+                    expr.evaluateExpr(
+                      expr.callMethod(
+                        expr.callMethod(expr.localVariable(["n"]), "toString", [
+                          expr.numberLiteral(16)
+                        ]),
+                        "padStart",
+                        [expr.numberLiteral(2), expr.stringLiteral("0")]
+                      )
+                    )
+                  ]
+                )
+              ]
+            ),
+            "join",
+            [expr.stringLiteral("")]
+          )
+        ]),
+        expr.addition(
+          expr.localVariable(["index"]),
+          expr.numberLiteral(byteSize)
+        )
+      )
     ]
   );
 
