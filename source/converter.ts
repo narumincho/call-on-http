@@ -75,7 +75,7 @@ export const decodeBoolean = (
 
 export const encodeHash = (hash: string): ReadonlyArray<number> => {
   const result = [];
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 32; i++) {
     result[i] = Number.parseInt(hash.slice(i * 2, i * 2 + 2), 16);
   }
   return result;
@@ -85,10 +85,10 @@ export const decodeHash = (
   index: number,
   binary: Uint8Array
 ): { result: string; nextIndex: number } => ({
-  result: Array.from(binary.slice(index, index + 24))
+  result: Array.from(binary.slice(index, index + 32))
     .map(n => n.toString(16).padStart(2, "0"))
     .join(""),
-  nextIndex: index + 24
+  nextIndex: index + 32
 });
 
 export const encodeId = (id: string): ReadonlyArray<number> => {

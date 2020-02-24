@@ -320,6 +320,72 @@ export const decodeBooleanCode = expr.functionWithReturnValueVariableDefinition(
   ]
 );
 
+const encodeIdName = (requestObjectName: string): ReadonlyArray<string> => [
+  "encodeId",
+  requestObjectName
+];
+
+const encodeIdVar = (requestObjectName: string): expr.Expr =>
+  expr.localVariable(encodeIdName(requestObjectName));
+
+export const encodeIdCode = (requestObjectName: string): expr.Statement =>
+  encodeHexString(16, requestObjectName);
+
+const encodeHashName = (requestObjectName: string): ReadonlyArray<string> => [
+  "encodeHash",
+  requestObjectName
+];
+
+const encodeHashVar = (requestObjectName: string): expr.Expr =>
+  expr.localVariable(encodeHashName(requestObjectName));
+
+export const encodeHashCode = (requestObjectName: string): expr.Statement =>
+  encodeHexString(32, requestObjectName);
+
+const encodeHexString = (
+  byteSize: number,
+  requestObjectName: string
+): expr.Statement =>
+  expr.functionWithReturnValueVariableDefinition(
+    encodeIdName(requestObjectName),
+    [{ name: ["id"], typeExpr: typeExpr.typeString }],
+    readonlyArrayNumber,
+    [
+      expr.variableDefinition(
+        ["result"],
+        typeExpr.withTypeParameter(typeExpr.globalType("Array"), [
+          typeExpr.typeNumber
+        ]),
+        expr.arrayLiteral([])
+      ),
+      expr.forStatement(["i"], expr.numberLiteral(byteSize), [
+        expr.set(
+          expr.getByExpr(
+            expr.localVariable(["result"]),
+            expr.localVariable(["i"])
+          ),
+          null,
+          expr.callMethod(expr.globalVariable("Number"), "parseInt", [
+            expr.callMethod(expr.localVariable(["id"]), "slice", [
+              expr.multiplication(
+                expr.localVariable(["i"]),
+                expr.numberLiteral(2)
+              ),
+              expr.addition(
+                expr.multiplication(
+                  expr.localVariable(["i"]),
+                  expr.numberLiteral(2)
+                ),
+                expr.numberLiteral(2)
+              )
+            ]),
+            expr.numberLiteral(16)
+          ])
+        )
+      ])
+    ]
+  );
+
 const memberListToObjectTypeExpr = <
   id extends type.RequestObjectId | type.ResponseObjectId
 >(
