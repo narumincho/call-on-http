@@ -329,7 +329,7 @@ const encodeIdVar = (requestObjectName: string): expr.Expr =>
   expr.localVariable(encodeIdName(requestObjectName));
 
 export const encodeIdCode = (requestObjectName: string): expr.Statement =>
-  encodeHexString(16, requestObjectName);
+  encodeHexString(16, encodeIdName(requestObjectName));
 
 const encodeHashName = (requestObjectName: string): ReadonlyArray<string> => [
   "encodeHash",
@@ -340,14 +340,14 @@ const encodeHashVar = (requestObjectName: string): expr.Expr =>
   expr.localVariable(encodeHashName(requestObjectName));
 
 export const encodeHashCode = (requestObjectName: string): expr.Statement =>
-  encodeHexString(32, requestObjectName);
+  encodeHexString(32, encodeHashName(requestObjectName));
 
 const encodeHexString = (
   byteSize: number,
-  requestObjectName: string
+  functionName: ReadonlyArray<string>
 ): expr.Statement =>
   expr.functionWithReturnValueVariableDefinition(
-    encodeIdName(requestObjectName),
+    functionName,
     [{ name: ["id"], typeExpr: typeExpr.typeString }],
     readonlyArrayNumber,
     [
