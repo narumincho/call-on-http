@@ -4,7 +4,6 @@ import { expr, typeExpr } from "js-ts-code-generator";
 import * as h from "@narumincho/html";
 import * as browserCode from "./browserCode";
 import * as binary from "./binary";
-import { URL } from "url";
 
 export const emit = (api: type.Api): string => {
   const html = createHtmlFromServerCode(api);
@@ -39,104 +38,109 @@ export const emit = (api: type.Api): string => {
     ])
   );
 
-  const middleware = generator.exportFunction({
-    name: "middleware",
-    parameterList: [
-      {
-        name: "request",
-        document: "リクエスト",
-        typeExpr: expressType.Request
-      },
-      {
-        name: "response",
-        document: "レスポンス",
-        typeExpr: expressType.Response
-      }
-    ],
-    document: "ミドルウェア",
-    returnType: null,
-    statementList: [
-      expr.variableDefinition(
-        acceptName,
-        typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
-        expr.get(expr.get(request, "headers"), "accept")
-      ),
-      expr.ifStatement(
-        expr.logicalAnd(
-          expr.notEqual(accept, expr.undefinedLiteral),
-          expr.callMethod(accept, "includes", [expr.literal("text/html")])
+  const middleware: [string, generator.ExportFunction] = [
+    "middleware",
+    {
+      parameterList: [
+        {
+          name: "request",
+          document: "リクエスト",
+          typeExpr: expressType.Request
+        },
+        {
+          name: "response",
+          document: "レスポンス",
+          typeExpr: expressType.Response
+        }
+      ],
+      document: "ミドルウェア",
+      returnType: null,
+      statementList: [
+        expr.variableDefinition(
+          acceptName,
+          typeExpr.union([typeExpr.typeString, typeExpr.typeUndefined]),
+          expr.get(expr.get(request, "headers"), "accept")
         ),
-        [
-          expr.evaluateExpr(
-            expr.callMethod(response, "setHeader", [
-              expr.literal("content-type"),
-              expr.literal("text/html")
-            ])
+        expr.ifStatement(
+          expr.logicalAnd(
+            expr.notEqual(accept, expr.undefinedLiteral),
+            expr.callMethod(accept, "includes", [expr.literal("text/html")])
           ),
-          expr.evaluateExpr(
-            expr.callMethod(response, "send", [expr.stringLiteral(html)])
-          ),
-          expr.returnVoidStatement
-        ]
-      ),
-      expr.variableDefinition(
-        bodyName,
-        typeExpr.union([typeExpr.typeUndefined, globalType.Buffer]),
-        expr.get(request, "body")
-      ),
-      expr.ifStatement(expr.equal(body, expr.undefinedLiteral), [
-        expr.throwError(`use binary body parser. in middleware app.
+          [
+            expr.evaluateExpr(
+              expr.callMethod(response, "setHeader", [
+                expr.literal("content-type"),
+                expr.literal("text/html")
+              ])
+            ),
+            expr.evaluateExpr(
+              expr.callMethod(response, "send", [expr.stringLiteral(html)])
+            ),
+            expr.returnVoidStatement
+          ]
+        ),
+        expr.variableDefinition(
+          bodyName,
+          typeExpr.union([typeExpr.typeUndefined, globalType.Buffer]),
+          expr.get(request, "body")
+        ),
+        expr.ifStatement(expr.equal(body, expr.undefinedLiteral), [
+          expr.throwError(`use binary body parser. in middleware app.
 
 const app = express();
 
 app.use(express.raw());
 app.use(path, out.middleware);`)
-      ]),
-      expr.variableDefinition(
-        requestBinaryName,
-        globalType.Uint8Array,
-        expr.newExpr(expr.globalVariable("Uint8Array"), [body])
-      ),
-      binary.decodeInt32Code,
-      expr.variableDefinition(
-        functionIdAndIndexName,
-        binary.resultAndNextIndexType(typeExpr.typeNumber),
-        expr.call(binary.decodeUInt32Var, [
-          expr.numberLiteral(0),
-          requestBinary
-        ])
-      ),
-      expr.variableDefinition(
-        functionIdName,
-        typeExpr.typeNumber,
-        expr.get(functionIdAndIndex, "result")
-      ),
-      binary.decodeStringCode(false),
-      ...api.requestObjectList.map(requestObject =>
-        binary.decodeRequestObjectCode(requestObject, typeIdNameDictionary)
-      ),
-      ...api.functionList.map(apiFunction =>
-        expr.ifStatement(
-          expr.equal(functionId, expr.numberLiteral(apiFunction.id)),
-          [
-            expr.evaluateExpr(
-              expr.callMethod(response, "send", [
-                expr.call(expr.globalVariable(apiFunction.name), [
-                  expr.get(
-                    expr.call(
-                      binary.decodeRequestObjectCodeVar(apiFunction.request),
-                      [expr.get(functionIdAndIndex, "nextIndex"), requestBinary]
-                    ),
-                    "result"
-                  )
+        ]),
+        expr.variableDefinition(
+          requestBinaryName,
+          globalType.Uint8Array,
+          expr.newExpr(expr.globalVariable("Uint8Array"), [body])
+        ),
+        binary.decodeInt32Code,
+        expr.variableDefinition(
+          functionIdAndIndexName,
+          binary.resultAndNextIndexType(typeExpr.typeNumber),
+          expr.call(binary.decodeUInt32Var, [
+            expr.numberLiteral(0),
+            requestBinary
+          ])
+        ),
+        expr.variableDefinition(
+          functionIdName,
+          typeExpr.typeNumber,
+          expr.get(functionIdAndIndex, "result")
+        ),
+        binary.decodeStringCode(false),
+        ...api.requestObjectList.map(requestObject =>
+          binary.decodeRequestObjectCode(requestObject, typeIdNameDictionary)
+        ),
+        ...api.functionList.map(apiFunction =>
+          expr.ifStatement(
+            expr.equal(functionId, expr.numberLiteral(apiFunction.id)),
+            [
+              expr.evaluateExpr(
+                expr.callMethod(response, "send", [
+                  expr.call(expr.globalVariable(apiFunction.name), [
+                    expr.get(
+                      expr.call(
+                        binary.decodeRequestObjectCodeVar(apiFunction.request),
+                        [
+                          expr.get(functionIdAndIndex, "nextIndex"),
+                          requestBinary
+                        ]
+                      ),
+                      "result"
+                    )
+                  ])
                 ])
-              ])
-            )
-          ]
+              )
+            ]
+          )
         )
-      )
-    ]
-  });
+      ]
+    }
+  ];
 
   const requestTypeAliasAndMaybeConstEnumList = api.requestObjectList.map(
     requestObjectType =>
@@ -146,8 +150,11 @@ app.use(path, out.middleware);`)
       )
   );
 
-  const serverCodeTemplate: ReadonlyArray<generator.ExportFunction> = api.functionList.map(
-    apiFunction => {
+  const serverCodeTemplate: ReadonlyMap<
+    string,
+    generator.ExportFunction
+  > = new Map(
+    api.functionList.map(apiFunction => {
       const parameterTypeName = typeIdNameDictionary.get(apiFunction.request);
       if (parameterTypeName === undefined) {
         throw new Error(
@@ -155,27 +162,29 @@ app.use(path, out.middleware);`)
             apiFunction.request.toString()
         );
       }
-      return generator.exportFunction({
-        name: apiFunction.name,
-        document:
-          "@id " + apiFunction.id.toString() + "\n" + apiFunction.description,
-        parameterList: [
-          {
-            name: "request",
-            document: "",
-            typeExpr: typeExpr.globalType(parameterTypeName)
-          }
-        ],
-        returnType: generator.typeExpr.typeString,
-        statementList: [
-          expr.returnStatement(
-            expr.stringLiteral(
-              apiFunction.name + "@" + apiFunction.id.toString()
+      return [
+        apiFunction.name,
+        {
+          document:
+            "@id " + apiFunction.id.toString() + "\n" + apiFunction.description,
+          parameterList: [
+            {
+              name: "request",
+              document: "",
+              typeExpr: typeExpr.globalType(parameterTypeName)
+            }
+          ],
+          returnType: generator.typeExpr.typeString,
+          statementList: [
+            expr.returnStatement(
+              expr.stringLiteral(
+                apiFunction.name + "@" + apiFunction.id.toString()
+              )
             )
-          )
-        ]
-      });
-    }
+          ]
+        }
+      ];
+    })
   );
   const exportConstEnumMap: Map<
     string,
@@ -191,11 +200,9 @@ app.use(path, out.middleware);`)
   }
 
   const nodeJsCode: generator.Code = {
-    exportTypeAliasList: requestTypeAliasAndMaybeConstEnumList.map(
-      typeDefinition => typeDefinition.typeAlias
-    ),
-    exportConstEnumMap,
-    exportFunctionList: [middleware].concat(serverCodeTemplate),
+    exportTypeAliasMap: new Map(),
+    exportConstEnumMap: new Map(),
+    exportFunctionMap: new Map([middleware, ...serverCodeTemplate]),
     statementList: []
   };
 
@@ -210,8 +217,8 @@ const createBrowserCode = (
   const globalConsole = expr.globalVariable("console");
 
   const code: generator.Code = {
-    exportFunctionList: browserFunctionList,
-    exportTypeAliasList: [],
+    exportFunctionMap: new Map(),
+    exportTypeAliasMap: new Map(),
     exportConstEnumMap: new Map(),
     statementList: api.functionList.map(func =>
       expr.evaluateExpr(
@@ -317,9 +324,9 @@ const createHtmlFromServerCode = (api: type.Api): string => {
         h.code(
           {},
           generator.toNodeJsOrBrowserCodeAsTypeScript({
-            exportFunctionList: browserFunctionList,
+            exportFunctionMap: new Map(),
             exportConstEnumMap: new Map(),
-            exportTypeAliasList: [],
+            exportTypeAliasMap: new Map(),
             statementList: []
           })
         )
@@ -329,9 +336,9 @@ const createHtmlFromServerCode = (api: type.Api): string => {
         h.code(
           {},
           generator.toESModulesBrowserCode({
-            exportFunctionList: browserFunctionList,
+            exportFunctionMap: new Map(),
             exportConstEnumMap: new Map(),
-            exportTypeAliasList: [],
+            exportTypeAliasMap: new Map(),
             statementList: []
           })
         )
