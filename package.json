@@ -20,14 +20,14 @@
   "dependencies": {
     "@narumincho/html": "0.1.0",
     "express": "^4.17.1",
-    "js-ts-code-generator": "0.1.9"
+    "js-ts-code-generator": "0.2.2"
   },
   "devDependencies": {
-    "typescript": "^3.8.2",
+    "typescript": "^3.8.3",
     "@types/express": "^4.17.2",
-    "@types/node": "^13.7.4",
-    "@typescript-eslint/eslint-plugin": "^2.20.0",
-    "@typescript-eslint/parser": "^2.20.0",
+    "@types/node": "^13.7.7",
+    "@typescript-eslint/eslint-plugin": "^2.22.0",
+    "@typescript-eslint/parser": "^2.22.0",
     "eslint": "^6.8.0",
     "eslint-config-prettier": "^6.10.0",
     "eslint-plugin-prettier": "^3.1.2",
