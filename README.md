@@ -1,5 +1,7 @@
 # call-on-http TypeScript 向けの RPC
 
+## 開発中断. @narumincho/type で型定義とエンコーダ,デコーダーが作れてしまえば, あとは関数のつじつま合わせだけになるので,そこまで大変じゃない. 共通する部分を見出して,手作業より速く作れる見込みがでたら再開する
+
 Remote Procedure Call on HTTP
 
 サーバーのコードから
