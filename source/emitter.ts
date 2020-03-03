@@ -31,13 +31,6 @@ export const emit = (api: type.Api): string => {
   const functionIdName = ["functionId"];
   const functionId = expr.localVariable(functionIdName);
 
-  const typeIdNameDictionary = new Map(
-    api.requestObjectList.map(requestObject => [
-      requestObject.id,
-      requestObject.name
-    ])
-  );
-
   const middleware: [string, generator.ExportFunction] = [
     "middleware",
     {
@@ -112,9 +105,6 @@ app.use(path, out.middleware);`)
           expr.get(functionIdAndIndex, "result")
         ),
         binary.decodeStringCode(false),
-        ...api.requestObjectList.map(requestObject =>
-          binary.decodeRequestObjectCode(requestObject, typeIdNameDictionary)
-        ),
         ...api.functionList.map(apiFunction =>
           expr.ifStatement(
             expr.equal(functionId, expr.numberLiteral(apiFunction.id)),
@@ -124,7 +114,9 @@ app.use(path, out.middleware);`)
                   expr.call(expr.globalVariable(apiFunction.name), [
                     expr.get(
                       expr.call(
-                        binary.decodeRequestObjectCodeVar(apiFunction.request),
+                        binary.decodeRequestObjectCodeVar(
+                          apiFunction.requestType
+                        ),
                         [
                           expr.get(functionIdAndIndex, "nextIndex"),
                           requestBinary
@@ -142,12 +134,8 @@ app.use(path, out.middleware);`)
     }
   ];
 
-  const requestTypeAliasAndMaybeConstEnumList = api.requestObjectList.map(
-    requestObjectType =>
-      binary.requestObjectTypeToTypeAlias(
-        requestObjectType,
-        typeIdNameDictionary
-      )
+  const requestTypeAliasAndMaybeConstEnumList = api.customTypeList.map(
+    customType => binary.requestObjectTypeToTypeAlias(customType)
   );
 
   const serverCodeTemplate: ReadonlyMap<
@@ -155,11 +143,13 @@ app.use(path, out.middleware);`)
     generator.ExportFunction
   > = new Map(
     api.functionList.map(apiFunction => {
-      const parameterTypeName = typeIdNameDictionary.get(apiFunction.request);
+      const parameterTypeName = typeIdNameDictionary.get(
+        apiFunction.requestType
+      );
       if (parameterTypeName === undefined) {
         throw new Error(
           "パラメータで与えられたIDの型を見つけることができなかった id=" +
-            apiFunction.request.toString()
+            apiFunction.requestType.toString()
         );
       }
       return [
@@ -359,14 +349,15 @@ const functionListToHtml = (api: type.Api): h.Element =>
           h.div({}, "request object type"),
           h.div(
             {},
-            type.getRequestObject(func.request, api.requestObjectList).name
+            type.getRequestObject(func.requestType, api.requestObjectList).name
           )
         ]),
         h.div({}, [
           h.div({}, "response object type"),
           h.div(
             {},
-            type.getResponseObject(func.response, api.responseObjectList).name
+            type.getResponseObject(func.responseType, api.responseObjectList)
+              .name
           )
         ]),
         h.button({ id: requestButtonId(func.id) }, "Request")

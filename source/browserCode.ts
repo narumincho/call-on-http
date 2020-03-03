@@ -40,10 +40,8 @@ const fetchWithBody = (
 
 const httpRequestFunction = (
   url: URL,
-  functionName: string,
   functionId: type.FunctionId
 ): generator.ExportFunction => ({
-  name: functionName,
   document: "",
   parameterList: [
     {
